@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: workforce_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: workforce_management
+      MYSQL_USER: workforce_user
+      MYSQL_PASSWORD: workforce_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - workforce_network
+    command: --default-authentication-plugin=mysql_native_password
+
+  redis:
+    image: redis:7-alpine
+    container_name: workforce_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - workforce_network
+    command: redis-server --appendonly yes
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: workforce_rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - workforce_network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: workforce_app
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: workforce_management
+      DB_USER: workforce_user
+      DB_PASSWORD: workforce_password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mysql
+      - redis
+      - rabbitmq
+    networks:
+      - workforce_network
+    volumes:
+      - ./logs:/app/logs
+
+volumes:
+  mysql_data:
+  redis_data:
+  rabbitmq_data:
+
+networks:
+  workforce_network:
+    driver: bridge

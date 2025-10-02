@@ -1,0 +1,123 @@
+import { Repository, FindManyOptions, Between, In } from 'typeorm';
+import { LeaveRequest } from '@/entities/leave-request.entity';
+import { LeaveRequestStatus, PaginationParams } from '@/types';
+import { dataSource } from '@/config/database';
+import { LeaveRequestRepository } from '@/interfaces/repository.interfaces';
+
+export class LeaveRequestRepositoryImpl implements LeaveRequestRepository {
+  private repository: Repository<LeaveRequest>;
+
+  constructor() {
+    this.repository = dataSource.getRepository(LeaveRequest);
+  }
+
+  async findById(id: number): Promise<LeaveRequest | null> {
+    return this.repository.findOne({ where: { id } });
+  }
+
+  async findByEmployeeId(
+    employeeId: number,
+    pagination?: PaginationParams
+  ): Promise<{ leaveRequests: LeaveRequest[]; total: number }> {
+    const options: FindManyOptions<LeaveRequest> = {
+      where: { employeeId },
+      relations: ['employee'],
+      order: { createdAt: 'DESC' },
+    };
+
+    if (pagination) {
+      const { page, limit } = pagination;
+      const skip = (page - 1) * limit;
+      options.skip = skip;
+      options.take = limit;
+    }
+
+    const [leaveRequests, total] = await this.repository.findAndCount(options);
+    return { leaveRequests, total };
+  }
+
+  async findByStatus(
+    status: LeaveRequestStatus,
+    pagination?: PaginationParams
+  ): Promise<{ leaveRequests: LeaveRequest[]; total: number }> {
+    const options: FindManyOptions<LeaveRequest> = {
+      where: { status },
+      relations: ['employee'],
+      order: { createdAt: 'DESC' },
+    };
+
+    if (pagination) {
+      const { page, limit } = pagination;
+      const skip = (page - 1) * limit;
+      options.skip = skip;
+      options.take = limit;
+    }
+
+    const [leaveRequests, total] = await this.repository.findAndCount(options);
+    return { leaveRequests, total };
+  }
+
+  async findPendingRequests(): Promise<LeaveRequest[]> {
+    return this.repository.find({
+      where: { status: LeaveRequestStatus.PENDING },
+      relations: ['employee'],
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  async findOverlappingRequests(
+    employeeId: number,
+    startDate: Date,
+    endDate: Date
+  ): Promise<LeaveRequest[]> {
+    return this.repository.find({
+      where: {
+        employeeId,
+        status: In([LeaveRequestStatus.PENDING, LeaveRequestStatus.APPROVED]),
+        startDate: Between(startDate, endDate),
+      },
+    });
+  }
+
+  async findAll(
+    options: FindManyOptions<LeaveRequest> = {}
+  ): Promise<LeaveRequest[]> {
+    return this.repository.find({
+      ...options,
+      relations: ['employee'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async create(data: Partial<LeaveRequest>): Promise<LeaveRequest> {
+    const leaveRequest = this.repository.create(data);
+    return this.repository.save(leaveRequest);
+  }
+
+  async update(id: number, data: Partial<LeaveRequest>): Promise<LeaveRequest> {
+    await this.repository.update(id, data);
+    const updated = await this.findById(id);
+    if (!updated) {
+      throw new Error('Leave request not found after update');
+    }
+    return updated;
+  }
+
+  async updateStatus(
+    id: number,
+    status: LeaveRequestStatus
+  ): Promise<LeaveRequest> {
+    return this.update(id, { status });
+  }
+
+  async delete(id: number): Promise<void> {
+    const result = await this.repository.delete(id);
+    if (result.affected === 0) {
+      throw new Error('Leave request not found');
+    }
+  }
+
+  async count(options: FindManyOptions<LeaveRequest> = {}): Promise<number> {
+    return this.repository.count(options);
+  }
+}
