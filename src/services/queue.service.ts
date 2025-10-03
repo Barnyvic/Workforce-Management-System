@@ -6,7 +6,7 @@ import { logger } from '@/services/logger.service';
 import { CacheServiceImpl } from '@/services/cache.service';
 
 export class QueueServiceImpl implements QueueService {
-  private connection: amqp.Connection | null = null;
+  private connection: any = null;
   private channel: amqp.Channel | null = null;
   private config = ConfigService.getInstance().getRabbitMQConfig();
   private cacheService: CacheServiceImpl;
@@ -54,7 +54,7 @@ export class QueueServiceImpl implements QueueService {
   async connect(): Promise<void> {
     try {
       this.connection = await amqp.connect(this.config.url);
-      this.channel = await this.connection!.createChannel();
+      this.channel = await this.connection.createChannel();
 
       await this.channel!.assertQueue(this.config.queueName, {
         durable: true,
