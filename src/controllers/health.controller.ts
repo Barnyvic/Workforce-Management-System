@@ -18,7 +18,7 @@ export class HealthController {
     this.queueService = queueService || new QueueServiceImpl();
   }
 
-  healthCheck = async (req: Request, res: Response): Promise<void> => {
+  healthCheck = async (_req: Request, res: Response): Promise<void> => {
     try {
       const health = {
         status: 'healthy',
@@ -90,7 +90,7 @@ export class HealthController {
     }
   };
 
-  queueHealth = async (req: Request, res: Response): Promise<void> => {
+  queueHealth = async (_req: Request, res: Response): Promise<void> => {
     try {
       const queueHealthy = await this.queueService.isHealthy();
       const statusCode = queueHealthy ? 200 : 503;
@@ -115,7 +115,7 @@ export class HealthController {
     }
   };
 
-  cacheHealth = async (req: Request, res: Response): Promise<void> => {
+  cacheHealth = async (_req: Request, res: Response): Promise<void> => {
     try {
       const cacheHealthy = await this.cacheService.isHealthy();
       const statusCode = cacheHealthy ? 200 : 503;

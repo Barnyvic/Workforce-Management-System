@@ -3,12 +3,23 @@ import express from 'express';
 import { DepartmentController } from '@/controllers/department.controller';
 import { DepartmentServiceImpl } from '@/services/department.service';
 import { DepartmentRepositoryImpl } from '@/repositories/department.repository';
+import { UserRepositoryImpl } from '@/repositories/user.repository';
+import { AuthServiceImpl } from '@/services/auth.service';
 import { validateRequest, schemas } from '@/middleware/validation.middleware';
 import { errorHandler } from '@/middleware/error.middleware';
-import { testDataSource, setupTestDatabase, teardownTestDatabase } from '../../setup';
+import { authenticateToken, requireAdmin } from '@/middleware/auth.middleware';
+import { UserRole } from '@/types';
+import {
+  testDataSource,
+  setupTestDatabase,
+  teardownTestDatabase,
+} from '../setup';
 
 describe('Department API Integration Tests', () => {
   let app: express.Application;
+  let adminToken: string;
+  let employeeToken: string;
+  let managerToken: string;
 
   beforeAll(async () => {
     await setupTestDatabase();
@@ -19,45 +30,107 @@ describe('Department API Integration Tests', () => {
   });
 
   beforeEach(async () => {
-    // Clean up database
     await testDataSource.synchronize();
 
-    // Create test app
     app = express();
     app.use(express.json());
 
-    // Initialize services and controllers
     const departmentRepository = new DepartmentRepositoryImpl();
+    const userRepository = new UserRepositoryImpl();
     const departmentService = new DepartmentServiceImpl(departmentRepository);
     const departmentController = new DepartmentController(departmentService);
+
+    // Create test departments
+    await departmentRepository.create({ name: 'Engineering' });
+    await departmentRepository.create({ name: 'HR' });
+    await departmentRepository.create({ name: 'Management' });
+
+    // Create test users
+    const adminUser = await userRepository.create({
+      name: 'Admin User',
+      email: 'admin@test.com',
+      password: 'hashedpassword',
+      role: UserRole.ADMIN,
+      departmentId: 1,
+    });
+
+    const employeeUser = await userRepository.create({
+      name: 'Employee User',
+      email: 'employee@test.com',
+      password: 'hashedpassword',
+      role: UserRole.EMPLOYEE,
+      departmentId: 1,
+    });
+
+    const managerUser = await userRepository.create({
+      name: 'Manager User',
+      email: 'manager@test.com',
+      password: 'hashedpassword',
+      role: UserRole.MANAGER,
+      departmentId: 2,
+    });
+
+    // Generate tokens
+    const authService = new AuthServiceImpl();
+    adminToken = authService.generateToken(adminUser.id, UserRole.ADMIN);
+    employeeToken = authService.generateToken(
+      employeeUser.id,
+      UserRole.EMPLOYEE
+    );
+    managerToken = authService.generateToken(managerUser.id, UserRole.MANAGER);
 
     // Setup routes
     app.post(
       '/departments',
       validateRequest({ body: schemas.createDepartment }),
+      requireAdmin,
       departmentController.createDepartment
     );
 
     app.get(
       '/departments/:id',
       validateRequest({ params: schemas.idParam }),
+      authenticateToken,
       departmentController.getDepartmentById
     );
 
-    app.get('/departments', departmentController.getAllDepartments);
+    app.get(
+      '/departments/:id/users',
+      validateRequest({
+        params: schemas.idParam,
+        query: schemas.paginationQuery,
+      }),
+      authenticateToken,
+      departmentController.getUsersByDepartment
+    );
+
+    app.get(
+      '/departments/:id/users-with-department',
+      validateRequest({ params: schemas.idParam }),
+      authenticateToken,
+      departmentController.getDepartmentWithUsers
+    );
+
+    app.get(
+      '/departments',
+      authenticateToken,
+      departmentController.getAllDepartments
+    );
 
     app.put(
       '/departments/:id',
-      validateRequest({ 
+      validateRequest({
         params: schemas.idParam,
-        body: schemas.createDepartment 
+        body: schemas.createDepartment,
       }),
+      requireAdmin,
       departmentController.updateDepartment
     );
 
     app.delete(
       '/departments/:id',
       validateRequest({ params: schemas.idParam }),
+      requireAdmin,
       departmentController.deleteDepartment
     );
 
@@ -65,17 +138,43 @@ describe('Department API Integration Tests', () => {
   });
 
   describe('POST /departments', () => {
-    it('should create a department successfully', async () => {
-      const departmentData = { name: 'Engineering' };
+    it('should create a department successfully as admin', async () => {
+      const departmentData = { name: 'Sales' };
 
       const response = await request(app)
         .post('/departments')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send(departmentData)
         .expect(201);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.name).toBe('Engineering');
+      expect(response.body.data.name).toBe('Sales');
       expect(response.body.message).toBe('Department created successfully');
+    });
+
+    it('should return 403 when non-admin tries to create department', async () => {
+      const departmentData = { name: 'Sales' };
+
+      const response = await request(app)
+        .post('/departments')
+        .set('Authorization', `Bearer ${employeeToken}`)
+        .send(departmentData)
+        .expect(403);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Admin access required');
+    });
+
+    it('should return 401 without authentication', async () => {
+      const departmentData = { name: 'Sales' };
+
+      const response = await request(app)
+        .post('/departments')
+        .send(departmentData)
+        .expect(401);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Access token required');
     });
 
     it('should return 400 for invalid data', async () => {
@@ -83,6 +182,7 @@ describe('Department API Integration Tests', () => {
 
       const response = await request(app)
         .post('/departments')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send(invalidData)
         .expect(400);
 
@@ -91,47 +191,45 @@ describe('Department API Integration Tests', () => {
     });
 
     it('should return 400 for duplicate department name', async () => {
-      const departmentData = { name: 'HR' };
+      const departmentData = { name: 'Finance' };
 
       // Create first department
       await request(app)
         .post('/departments')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send(departmentData)
         .expect(201);
 
       // Try to create duplicate
       const response = await request(app)
         .post('/departments')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send(departmentData)
         .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Department with this name already exists');
+      expect(response.body.error).toBe(
+        'Department with this name already exists'
+      );
     });
   });
 
   describe('GET /departments/:id', () => {
     it('should return department when found', async () => {
-      // Create department first
-      const createResponse = await request(app)
-        .post('/departments')
-        .send({ name: 'Marketing' })
-        .expect(201);
-
-      const departmentId = createResponse.body.data.id;
-
       const response = await request(app)
-        .get(`/departments/${departmentId}`)
+        .get('/departments/1')
+        .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.id).toBe(departmentId);
-      expect(response.body.data.name).toBe('Marketing');
+      expect(response.body.data.id).toBe(1);
+      expect(response.body.data.name).toBe('Engineering');
     });
 
     it('should return 404 when department not found', async () => {
       const response = await request(app)
         .get('/departments/999')
+        .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
 
       expect(response.body.success).toBe(false);
@@ -141,93 +239,252 @@ describe('Department API Integration Tests', () => {
     it('should return 400 for invalid ID', async () => {
       const response = await request(app)
         .get('/departments/invalid')
+        .set('Authorization', `Bearer ${adminToken}`)
         .expect(400);
 
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain('Validation failed');
     });
+
+    it('should require authentication', async () => {
+      const response = await request(app).get('/departments/1').expect(401);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Access token required');
+    });
   });
 
-  describe('GET /departments', () => {
-    it('should return all departments', async () => {
-      // Create test departments
-      await request(app)
-        .post('/departments')
-        .send({ name: 'Engineering' })
-        .expect(201);
-
-      await request(app)
-        .post('/departments')
-        .send({ name: 'HR' })
-        .expect(201);
-
+  describe('GET /departments/:id/users', () => {
+    it('should return users by department with pagination', async () => {
       const response = await request(app)
-        .get('/departments')
+        .get('/departments/1/users?page=1&limit=10')
+        .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveLength(2);
+      expect(response.body.data[0].departmentId).toBe(1);
+      expect(response.body.data[1].departmentId).toBe(1);
+    });
+
+    it('should handle pagination correctly', async () => {
+      const response = await request(app)
+        .get('/departments/1/users?page=1&limit=1')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveLength(1);
+    });
+
+    it('should return empty array for department with no users', async () => {
+      const response = await request(app)
+        .get('/departments/3/users')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveLength(1);
+    });
+
+    it('should return 404 for non-existent department', async () => {
+      const response = await request(app)
+        .get('/departments/999/users')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(404);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Department not found');
+    });
+
+    it('should require authentication', async () => {
+      const response = await request(app)
+        .get('/departments/1/users')
+        .expect(401);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Access token required');
+    });
+  });
+
+  describe('GET /departments/:id/users-with-department', () => {
+    it('should return department with users', async () => {
+      const response = await request(app)
+        .get('/departments/1/users-with-department')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.id).toBe(1);
+      expect(response.body.data.name).toBe('Engineering');
+      expect(response.body.data.users).toBeDefined();
+      expect(Array.isArray(response.body.data.users)).toBe(true);
+    });
+
+    it('should return 404 for non-existent department', async () => {
+      const response = await request(app)
+        .get('/departments/999/users-with-department')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(404);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Department not found');
+    });
+
+    it('should require authentication', async () => {
+      const response = await request(app)
+        .get('/departments/1/users-with-department')
+        .expect(401);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Access token required');
+    });
+  });
+
+  describe('GET /departments', () => {
+    it('should return all departments', async () => {
+      const response = await request(app)
+        .get('/departments')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveLength(3);
       expect(response.body.data[0].name).toBeDefined();
       expect(response.body.data[1].name).toBeDefined();
+      expect(response.body.data[2].name).toBeDefined();
+    });
+
+    it('should require authentication', async () => {
+      const response = await request(app).get('/departments').expect(401);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Access token required');
     });
   });
 
   describe('PUT /departments/:id', () => {
-    it('should update department successfully', async () => {
-      // Create department first
-      const createResponse = await request(app)
-        .post('/departments')
-        .send({ name: 'Sales' })
-        .expect(201);
-
-      const departmentId = createResponse.body.data.id;
-
+    it('should update department successfully as admin', async () => {
       const response = await request(app)
-        .put(`/departments/${departmentId}`)
-        .send({ name: 'Updated Sales' })
+        .put('/departments/1')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Updated Engineering' })
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.name).toBe('Updated Sales');
+      expect(response.body.data.name).toBe('Updated Engineering');
       expect(response.body.message).toBe('Department updated successfully');
+    });
+
+    it('should return 403 when non-admin tries to update department', async () => {
+      const response = await request(app)
+        .put('/departments/1')
+        .set('Authorization', `Bearer ${employeeToken}`)
+        .send({ name: 'Updated Engineering' })
+        .expect(403);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Admin access required');
     });
 
     it('should return 404 when updating non-existent department', async () => {
       const response = await request(app)
         .put('/departments/999')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ name: 'Non-existent' })
         .expect(404);
 
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe('Department not found');
     });
+
+    it('should return 400 for invalid update data', async () => {
+      const response = await request(app)
+        .put('/departments/1')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: '' })
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain('Validation failed');
+    });
+
+    it('should return 401 without authentication', async () => {
+      const response = await request(app)
+        .put('/departments/1')
+        .send({ name: 'Updated Engineering' })
+        .expect(401);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Access token required');
+    });
   });
 
   describe('DELETE /departments/:id', () => {
-    it('should delete department successfully', async () => {
-      // Create department first
-      const createResponse = await request(app)
-        .post('/departments')
-        .send({ name: 'Finance' })
-        .expect(201);
-
-      const departmentId = createResponse.body.data.id;
-
+    it('should delete department successfully as admin', async () => {
       const response = await request(app)
-        .delete(`/departments/${departmentId}`)
+        .delete('/departments/3')
+        .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.message).toBe('Department deleted successfully');
     });
 
+    it('should return 403 when non-admin tries to delete department', async () => {
+      const response = await request(app)
+        .delete('/departments/3')
+        .set('Authorization', `Bearer ${employeeToken}`)
+        .expect(403);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Admin access required');
+    });
+
     it('should return 404 when deleting non-existent department', async () => {
       const response = await request(app)
         .delete('/departments/999')
+        .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
 
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe('Department not found');
+    });
+
+    it('should return 401 without authentication', async () => {
+      const response = await request(app).delete('/departments/3').expect(401);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Access token required');
+    });
+  });
+
+  describe('Role-based access control', () => {
+    it('should allow admin to access all department endpoints', async () => {
+      const response = await request(app)
+        .get('/departments')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+    });
+
+    it('should allow employee to view departments', async () => {
+      const response = await request(app)
+        .get('/departments')
+        .set('Authorization', `Bearer ${employeeToken}`)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+    });
+
+    it('should allow manager to view departments', async () => {
+      const response = await request(app)
+        .get('/departments')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
     });
   });
 });

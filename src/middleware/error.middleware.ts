@@ -5,9 +5,9 @@ import { logger } from '@/services/logger.service';
 
 export const errorHandler = (
   error: Error,
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): void => {
   logger.error('Error:', error);
 
