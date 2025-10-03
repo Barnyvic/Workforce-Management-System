@@ -109,7 +109,7 @@ export class LeaveRequestController {
     res.status(statusCode).json(result);
   };
 
-  getAllLeaveRequests = async (req: Request, res: Response): Promise<void> => {
+  getAllLeaveRequests = async (_req: Request, res: Response): Promise<void> => {
     const result = await this.leaveRequestService.getAllLeaveRequests();
     res.status(200).json(result);
   };

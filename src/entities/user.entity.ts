@@ -33,9 +33,9 @@ export class User {
   password!: string;
 
   @Column({
-    type: 'enum',
-    enum: UserRole,
-    default: UserRole.EMPLOYEE,
+    type: 'varchar',
+    length: 50,
+    default: 'EMPLOYEE',
   })
   role!: UserRole;
 

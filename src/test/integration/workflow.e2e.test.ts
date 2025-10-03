@@ -1,5 +1,6 @@
 import request from 'supertest';
 import express from 'express';
+import Joi from 'joi';
 import { DepartmentController } from '@/controllers/department.controller';
 import { UserController } from '@/controllers/user.controller';
 import { LeaveRequestController } from '@/controllers/leave-request.controller';
@@ -90,7 +91,6 @@ describe('End-to-End Workflow Integration Tests', () => {
     const engineeringDept = await departmentRepository.create({
       name: 'Engineering',
     });
-    const hrDept = await departmentRepository.create({ name: 'HR' });
 
     const adminUser = await userRepository.create({
       name: 'System Admin',
@@ -565,7 +565,9 @@ function setupRoutes(app: express.Application, controllers: any) {
   app.get(
     '/departments/:departmentId/users',
     validateRequest({
-      params: { departmentId: schemas.idParam.extract('id') },
+      params: Joi.object({
+        departmentId: Joi.number().integer().positive().required(),
+      }),
       query: schemas.paginationQuery,
     }),
     authenticateToken,
@@ -650,7 +652,9 @@ function setupRoutes(app: express.Application, controllers: any) {
   app.get(
     '/users/:userId/leave-requests',
     validateRequest({
-      params: { userId: schemas.idParam.extract('id') },
+      params: Joi.object({
+        userId: Joi.number().integer().positive().required(),
+      }),
       query: schemas.paginationQuery,
     }),
     authenticateToken,
@@ -659,7 +663,11 @@ function setupRoutes(app: express.Application, controllers: any) {
   app.get(
     '/leave-requests/status/:status',
     validateRequest({
-      params: { status: schemas.updateLeaveRequestStatus.extract('status') },
+      params: Joi.object({
+        status: Joi.string()
+          .valid('PENDING', 'APPROVED', 'REJECTED', 'PENDING_APPROVAL')
+          .required(),
+      }),
       query: schemas.paginationQuery,
     }),
     authenticateToken,

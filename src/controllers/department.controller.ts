@@ -68,7 +68,7 @@ export class DepartmentController {
     res.status(statusCode).json(result);
   };
 
-  getAllDepartments = async (req: Request, res: Response): Promise<void> => {
+  getAllDepartments = async (_req: Request, res: Response): Promise<void> => {
     const result = await this.departmentService.getAllDepartments();
     res.status(200).json(result);
   };

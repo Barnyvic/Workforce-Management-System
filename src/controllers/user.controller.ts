@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { UserServiceImpl } from '@/services/user.service';
-import { validateRequest, schemas } from '@/middleware/validation.middleware';
 import { AuthenticatedRequest } from '@/middleware/auth.middleware';
 
 export class UserController {
@@ -17,7 +16,7 @@ export class UserController {
   };
 
   getUserById = async (req: Request, res: Response): Promise<void> => {
-    const id = parseInt(req.params['id']);
+    const id = parseInt(req.params['id'] || '0');
     if (isNaN(id) || id <= 0) {
       res.status(400).json({
         success: false,
@@ -36,7 +35,7 @@ export class UserController {
     req: Request,
     res: Response
   ): Promise<void> => {
-    const id = parseInt(req.params['id']);
+    const id = parseInt(req.params['id'] || '0');
     if (isNaN(id) || id <= 0) {
       res.status(400).json({
         success: false,
@@ -52,7 +51,7 @@ export class UserController {
   };
 
   getUsersByDepartment = async (req: Request, res: Response): Promise<void> => {
-    const departmentId = parseInt(req.params['departmentId']);
+    const departmentId = parseInt(req.params['departmentId'] || '0');
     if (isNaN(departmentId) || departmentId <= 0) {
       res.status(400).json({
         success: false,
@@ -82,13 +81,13 @@ export class UserController {
     res.status(statusCode).json(result);
   };
 
-  getAllUsers = async (req: Request, res: Response): Promise<void> => {
+  getAllUsers = async (_req: Request, res: Response): Promise<void> => {
     const result = await this.userService.getAllUsers();
     res.status(200).json(result);
   };
 
   updateUser = async (req: Request, res: Response): Promise<void> => {
-    const id = parseInt(req.params['id']);
+    const id = parseInt(req.params['id'] || '0');
     if (isNaN(id) || id <= 0) {
       res.status(400).json({
         success: false,
@@ -104,7 +103,7 @@ export class UserController {
   };
 
   deleteUser = async (req: Request, res: Response): Promise<void> => {
-    const id = parseInt(req.params['id']);
+    const id = parseInt(req.params['id'] || '0');
     if (isNaN(id) || id <= 0) {
       res.status(400).json({
         success: false,

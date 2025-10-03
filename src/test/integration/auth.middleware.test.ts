@@ -5,12 +5,13 @@ import { UserServiceImpl } from '@/services/user.service';
 import { UserRepositoryImpl } from '@/repositories/user.repository';
 import { DepartmentRepositoryImpl } from '@/repositories/department.repository';
 import { AuthServiceImpl } from '@/services/auth.service';
-import { validateRequest, schemas } from '@/middleware/validation.middleware';
+
 import { errorHandler } from '@/middleware/error.middleware';
 import {
   authenticateToken,
   requireAdmin,
   requireManagerOrAdmin,
+  AuthenticatedRequest,
 } from '@/middleware/auth.middleware';
 import { UserRole } from '@/types';
 import {
@@ -88,21 +89,25 @@ describe('Authentication Middleware Integration Tests', () => {
     managerToken = authService.generateToken(managerUser.id, UserRole.MANAGER);
 
     // Generate expired token (simulate by creating with very short expiry)
-    const originalExpiresIn = process.env.JWT_EXPIRES_IN;
-    process.env.JWT_EXPIRES_IN = '1'; // 1 second
+    const originalExpiresIn = process.env['JWT_EXPIRES_IN'];
+    process.env['JWT_EXPIRES_IN'] = '1'; // 1 second
     expiredToken = authService.generateToken(adminUser.id, UserRole.ADMIN);
     if (originalExpiresIn) {
-      process.env.JWT_EXPIRES_IN = originalExpiresIn;
+      process.env['JWT_EXPIRES_IN'] = originalExpiresIn;
     }
 
     invalidToken = 'invalid.jwt.token';
 
     // Setup test routes with different middleware combinations
-    app.get('/protected', authenticateToken, (req, res) => {
-      res.json({ success: true, message: 'Access granted', user: req.user });
-    });
+    app.get(
+      '/protected',
+      authenticateToken,
+      (req: AuthenticatedRequest, res) => {
+        res.json({ success: true, message: 'Access granted', user: req.user });
+      }
+    );
 
-    app.get('/admin-only', requireAdmin, (req, res) => {
+    app.get('/admin-only', requireAdmin, (req: AuthenticatedRequest, res) => {
       res.json({
         success: true,
         message: 'Admin access granted',
@@ -110,15 +115,19 @@ describe('Authentication Middleware Integration Tests', () => {
       });
     });
 
-    app.get('/manager-or-admin', requireManagerOrAdmin, (req, res) => {
-      res.json({
-        success: true,
-        message: 'Manager/Admin access granted',
-        user: req.user,
-      });
-    });
+    app.get(
+      '/manager-or-admin',
+      requireManagerOrAdmin,
+      (req: AuthenticatedRequest, res) => {
+        res.json({
+          success: true,
+          message: 'Manager/Admin access granted',
+          user: req.user,
+        });
+      }
+    );
 
-    app.get('/public', (req, res) => {
+    app.get('/public', (_req, res) => {
       res.json({ success: true, message: 'Public access granted' });
     });
 

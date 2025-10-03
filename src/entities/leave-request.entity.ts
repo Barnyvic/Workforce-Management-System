@@ -31,9 +31,9 @@ export class LeaveRequest {
   endDate!: Date;
 
   @Column({
-    type: 'enum',
-    enum: LeaveRequestStatus,
-    default: LeaveRequestStatus.PENDING,
+    type: 'varchar',
+    length: 50,
+    default: 'PENDING',
   })
   status!: LeaveRequestStatus;
 

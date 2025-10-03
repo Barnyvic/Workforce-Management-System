@@ -1,5 +1,6 @@
 import request from 'supertest';
 import express from 'express';
+import Joi from 'joi';
 import { UserController } from '@/controllers/user.controller';
 import { UserServiceImpl } from '@/services/user.service';
 import { UserRepositoryImpl } from '@/repositories/user.repository';
@@ -113,7 +114,9 @@ describe('User API Integration Tests', () => {
     app.get(
       '/departments/:departmentId/users',
       validateRequest({
-        params: { departmentId: schemas.idParam.extract('id') },
+        params: Joi.object({
+          departmentId: Joi.number().integer().positive().required(),
+        }),
         query: schemas.paginationQuery,
       }),
       authenticateToken,

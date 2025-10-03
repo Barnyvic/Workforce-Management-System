@@ -45,7 +45,7 @@ class Application {
     this.app.use(express.json({ limit: '10mb' }));
     this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-    this.app.get('/ping', (req, res) => {
+    this.app.get('/ping', (_req, res) => {
       res.json({ message: 'pong', timestamp: new Date().toISOString() });
     });
   }
