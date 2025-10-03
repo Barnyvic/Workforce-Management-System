@@ -4,6 +4,8 @@ import { DepartmentController } from '@/controllers/department.controller';
 import { UserController } from '@/controllers/user.controller';
 import { LeaveRequestController } from '@/controllers/leave-request.controller';
 import { HealthController } from '@/controllers/health.controller';
+import { CacheServiceImpl } from '@/services/cache.service';
+import { QueueServiceImpl } from '@/services/queue.service';
 import { validateRequest, schemas } from '@/middleware/validation.middleware';
 import {
   authenticateToken,
@@ -11,12 +13,13 @@ import {
   requireManagerOrAdmin,
 } from '@/middleware/auth.middleware';
 
-const router = Router();
+export function createRoutes(cacheService?: CacheServiceImpl, queueService?: QueueServiceImpl): Router {
+  const router = Router();
 
-const departmentController = new DepartmentController();
-const userController = new UserController();
-const leaveRequestController = new LeaveRequestController();
-const healthController = new HealthController();
+  const departmentController = new DepartmentController();
+  const userController = new UserController();
+  const leaveRequestController = new LeaveRequestController();
+  const healthController = new HealthController(cacheService, queueService);
 
 router.post(
   '/auth/login',
@@ -189,8 +192,11 @@ router.delete(
   leaveRequestController.deleteLeaveRequest
 );
 
-router.get('/health', healthController.healthCheck);
-router.get('/health/queue', healthController.queueHealth);
-router.get('/health/cache', healthController.cacheHealth);
+  router.get('/health', healthController.healthCheck);
+  router.get('/health/queue', healthController.queueHealth);
+  router.get('/health/cache', healthController.cacheHealth);
 
-export default router;
+  return router;
+}
+
+export default createRoutes();

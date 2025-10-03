@@ -13,9 +13,9 @@
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write src/**/*.ts",
-    "migrate": "typeorm migration:run -d src/config/data-source.ts",
-    "migrate:generate": "typeorm migration:generate -d src/config/data-source.ts",
-    "migrate:revert": "typeorm migration:revert -d src/config/data-source.ts",
+    "migrate": "typeorm migration:run -d ormconfig.ts",
+    "migrate:generate": "typeorm migration:generate -d ormconfig.ts",
+    "migrate:revert": "typeorm migration:revert -d ormconfig.ts",
     "seed": "ts-node scripts/seed.ts"
   },
   "keywords": [

@@ -1,7 +1,6 @@
 import 'reflect-metadata';
 import dotenv from 'dotenv';
 
-// Load environment variables first, before any other imports
 dotenv.config();
 
 import express from 'express';
@@ -12,7 +11,7 @@ import { CacheServiceImpl } from '@/services/cache.service';
 import { QueueServiceImpl } from '@/services/queue.service';
 import { LeaveRequestServiceImpl } from '@/services/leave-request.service';
 import { logger } from '@/services/logger.service';
-import routes from '@/routes';
+import { createRoutes } from '@/routes';
 import { errorHandler, notFoundHandler } from '@/middleware/error.middleware';
 import {
   createRateLimiter,
@@ -53,6 +52,7 @@ class Application {
   }
 
   private setupRoutes(): void {
+    const routes = createRoutes(this.cacheService, this.queueService);
     this.app.use('/api/v1', routes);
   }
 
