@@ -1,7 +1,6 @@
 import { DepartmentServiceImpl } from '@/services/department.service';
 import { DepartmentRepositoryImpl } from '@/repositories/department.repository';
-import { Department } from '@/entities/department.entity';
-import { testDataSource, setupTestDatabase, teardownTestDatabase } from '../setup';
+import { setupTestDatabase, teardownTestDatabase } from '../setup';
 
 describe('DepartmentService', () => {
   let departmentService: DepartmentServiceImpl;
@@ -33,11 +32,9 @@ describe('DepartmentService', () => {
 
     it('should fail when creating department with duplicate name', async () => {
       const departmentData = { name: 'Engineering' };
-      
-      // Create first department
+
       await departmentService.createDepartment(departmentData);
-      
-      // Try to create duplicate
+
       const result = await departmentService.createDepartment(departmentData);
 
       expect(result.success).toBe(false);
@@ -56,7 +53,8 @@ describe('DepartmentService', () => {
   describe('getDepartmentById', () => {
     it('should return department when found', async () => {
       const departmentData = { name: 'HR' };
-      const createResult = await departmentService.createDepartment(departmentData);
+      const createResult =
+        await departmentService.createDepartment(departmentData);
       const departmentId = createResult.data?.id;
 
       const result = await departmentService.getDepartmentById(departmentId!);
@@ -77,11 +75,15 @@ describe('DepartmentService', () => {
   describe('updateDepartment', () => {
     it('should update department successfully', async () => {
       const departmentData = { name: 'Marketing' };
-      const createResult = await departmentService.createDepartment(departmentData);
+      const createResult =
+        await departmentService.createDepartment(departmentData);
       const departmentId = createResult.data?.id;
 
       const updateData = { name: 'Updated Marketing' };
-      const result = await departmentService.updateDepartment(departmentId!, updateData);
+      const result = await departmentService.updateDepartment(
+        departmentId!,
+        updateData
+      );
 
       expect(result.success).toBe(true);
       expect(result.data?.name).toBe('Updated Marketing');
@@ -100,7 +102,8 @@ describe('DepartmentService', () => {
   describe('deleteDepartment', () => {
     it('should delete department successfully', async () => {
       const departmentData = { name: 'Finance' };
-      const createResult = await departmentService.createDepartment(departmentData);
+      const createResult =
+        await departmentService.createDepartment(departmentData);
       const departmentId = createResult.data?.id;
 
       const result = await departmentService.deleteDepartment(departmentId!);

@@ -1,14 +1,18 @@
 import { LeaveRequestServiceImpl } from '@/services/leave-request.service';
 import { LeaveRequestRepositoryImpl } from '@/repositories/leave-request.repository';
-import { EmployeeRepositoryImpl } from '@/repositories/employee.repository';
+import { UserRepositoryImpl } from '@/repositories/user.repository';
 import { DepartmentRepositoryImpl } from '@/repositories/department.repository';
-import { LeaveRequestStatus, QueueMessage } from '@/types';
-import { testDataSource, setupTestDatabase, teardownTestDatabase } from '../setup';
+import { LeaveRequestStatus, QueueMessage, UserRole } from '@/types';
+import {
+  testDataSource,
+  setupTestDatabase,
+  teardownTestDatabase,
+} from '../setup';
 
 describe('LeaveRequestService', () => {
   let leaveRequestService: LeaveRequestServiceImpl;
   let leaveRequestRepository: LeaveRequestRepositoryImpl;
-  let employeeRepository: EmployeeRepositoryImpl;
+  let userRepository: UserRepositoryImpl;
   let departmentRepository: DepartmentRepositoryImpl;
 
   beforeAll(async () => {
@@ -20,65 +24,68 @@ describe('LeaveRequestService', () => {
   });
 
   beforeEach(async () => {
-    // Clean up database
     await testDataSource.synchronize();
-    
+
     leaveRequestRepository = new LeaveRequestRepositoryImpl();
-    employeeRepository = new EmployeeRepositoryImpl();
+    userRepository = new UserRepositoryImpl();
     departmentRepository = new DepartmentRepositoryImpl();
     leaveRequestService = new LeaveRequestServiceImpl(
       leaveRequestRepository,
-      employeeRepository
+      userRepository
     );
   });
 
   describe('createLeaveRequest', () => {
     beforeEach(async () => {
-      // Create test department and employee
       await departmentRepository.create({ name: 'Engineering' });
-      await employeeRepository.create({
+      await userRepository.create({
         name: 'John Doe',
         email: 'john@example.com',
+        password: 'password123',
+        role: UserRole.EMPLOYEE,
         departmentId: 1,
       });
     });
 
     it('should create leave request successfully', async () => {
       const leaveRequestData = {
-        employeeId: 1,
+        userId: 1,
         startDate: '2024-02-01',
         endDate: '2024-02-02',
       };
 
-      const result = await leaveRequestService.createLeaveRequest(leaveRequestData);
+      const result =
+        await leaveRequestService.createLeaveRequest(leaveRequestData);
 
       expect(result.success).toBe(true);
       expect(result.data).toBeDefined();
-      expect(result.data?.employeeId).toBe(1);
+      expect(result.data?.userId).toBe(1);
       expect(result.data?.status).toBe(LeaveRequestStatus.PENDING);
     });
 
-    it('should fail when employee does not exist', async () => {
+    it('should fail when user does not exist', async () => {
       const leaveRequestData = {
-        employeeId: 999,
+        userId: 999,
         startDate: '2024-02-01',
         endDate: '2024-02-02',
       };
 
-      const result = await leaveRequestService.createLeaveRequest(leaveRequestData);
+      const result =
+        await leaveRequestService.createLeaveRequest(leaveRequestData);
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Employee not found');
+      expect(result.error).toBe('User not found');
     });
 
     it('should fail when end date is before start date', async () => {
       const leaveRequestData = {
-        employeeId: 1,
+        userId: 1,
         startDate: '2024-02-02',
         endDate: '2024-02-01',
       };
 
-      const result = await leaveRequestService.createLeaveRequest(leaveRequestData);
+      const result =
+        await leaveRequestService.createLeaveRequest(leaveRequestData);
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('End date must be after start date');
@@ -87,14 +94,16 @@ describe('LeaveRequestService', () => {
     it('should fail when start date is in the past', async () => {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
 
       const leaveRequestData = {
-        employeeId: 1,
-        startDate: yesterday.toISOString().split('T')[0],
+        userId: 1,
+        startDate: yesterdayStr!,
         endDate: '2024-02-02',
       };
 
-      const result = await leaveRequestService.createLeaveRequest(leaveRequestData);
+      const result =
+        await leaveRequestService.createLeaveRequest(leaveRequestData);
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Start date cannot be in the past');
@@ -103,21 +112,21 @@ describe('LeaveRequestService', () => {
 
   describe('processLeaveRequest', () => {
     beforeEach(async () => {
-      // Create test department and employee
       await departmentRepository.create({ name: 'Engineering' });
-      await employeeRepository.create({
+      await userRepository.create({
         name: 'John Doe',
         email: 'john@example.com',
+        password: 'password123',
+        role: UserRole.EMPLOYEE,
         departmentId: 1,
       });
     });
 
     it('should auto-approve short leave requests (≤ 2 days)', async () => {
-      // Create leave request
       const leaveRequest = await leaveRequestRepository.create({
-        employeeId: 1,
+        userId: 1,
         startDate: new Date('2024-02-01'),
-        endDate: new Date('2024-02-02'), // 2 days
+        endDate: new Date('2024-02-02'),
         status: LeaveRequestStatus.PENDING,
       });
 
@@ -126,7 +135,7 @@ describe('LeaveRequestService', () => {
         type: 'leave.requested',
         data: {
           leaveRequestId: leaveRequest.id,
-          employeeId: 1,
+          userId: 1,
           startDate: '2024-02-01',
           endDate: '2024-02-02',
         },
@@ -135,16 +144,17 @@ describe('LeaveRequestService', () => {
 
       await leaveRequestService.processLeaveRequest(message);
 
-      const updatedRequest = await leaveRequestRepository.findById(leaveRequest.id);
+      const updatedRequest = await leaveRequestRepository.findById(
+        leaveRequest.id
+      );
       expect(updatedRequest?.status).toBe(LeaveRequestStatus.APPROVED);
     });
 
     it('should mark long leave requests as pending approval (> 2 days)', async () => {
-      // Create leave request
       const leaveRequest = await leaveRequestRepository.create({
-        employeeId: 1,
+        userId: 1,
         startDate: new Date('2024-02-01'),
-        endDate: new Date('2024-02-05'), // 5 days
+        endDate: new Date('2024-02-05'),
         status: LeaveRequestStatus.PENDING,
       });
 
@@ -153,7 +163,7 @@ describe('LeaveRequestService', () => {
         type: 'leave.requested',
         data: {
           leaveRequestId: leaveRequest.id,
-          employeeId: 1,
+          userId: 1,
           startDate: '2024-02-01',
           endDate: '2024-02-05',
         },
@@ -162,7 +172,9 @@ describe('LeaveRequestService', () => {
 
       await leaveRequestService.processLeaveRequest(message);
 
-      const updatedRequest = await leaveRequestRepository.findById(leaveRequest.id);
+      const updatedRequest = await leaveRequestRepository.findById(
+        leaveRequest.id
+      );
       expect(updatedRequest?.status).toBe(LeaveRequestStatus.PENDING_APPROVAL);
     });
 
@@ -171,33 +183,35 @@ describe('LeaveRequestService', () => {
         id: 'test-3',
         type: 'leave.requested',
         data: {
-          leaveRequestId: 999, // Non-existent ID
-          employeeId: 1,
+          leaveRequestId: 999,
+          userId: 1,
           startDate: '2024-02-01',
           endDate: '2024-02-02',
         },
         timestamp: new Date().toISOString(),
       };
 
-      // Should not throw error
-      await expect(leaveRequestService.processLeaveRequest(message)).resolves.not.toThrow();
+      await expect(
+        leaveRequestService.processLeaveRequest(message)
+      ).resolves.not.toThrow();
     });
   });
 
   describe('updateLeaveRequestStatus', () => {
     beforeEach(async () => {
-      // Create test department and employee
       await departmentRepository.create({ name: 'Engineering' });
-      await employeeRepository.create({
+      await userRepository.create({
         name: 'John Doe',
         email: 'john@example.com',
+        password: 'password123',
+        role: UserRole.EMPLOYEE,
         departmentId: 1,
       });
     });
 
     it('should update leave request status successfully', async () => {
       const leaveRequest = await leaveRequestRepository.create({
-        employeeId: 1,
+        userId: 1,
         startDate: new Date('2024-02-01'),
         endDate: new Date('2024-02-02'),
         status: LeaveRequestStatus.PENDING,
