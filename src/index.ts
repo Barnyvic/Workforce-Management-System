@@ -1,7 +1,11 @@
 import 'reflect-metadata';
+import dotenv from 'dotenv';
+
+// Load environment variables first, before any other imports
+dotenv.config();
+
 import express from 'express';
 import helmet from 'helmet';
-import dotenv from 'dotenv';
 import { ConfigService } from '@/config/config.service';
 import { databaseService } from '@/config/database';
 import { CacheServiceImpl } from '@/services/cache.service';
@@ -15,8 +19,6 @@ import {
   requestLogger,
   corsHandler,
 } from '@/middleware/security.middleware';
-
-dotenv.config();
 
 class Application {
   private app: express.Application;
