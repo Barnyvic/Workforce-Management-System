@@ -5,8 +5,13 @@ import { QueueService } from '@/interfaces/queue.interface';
 import { logger } from '@/services/logger.service';
 import { CacheServiceImpl } from '@/services/cache.service';
 
+interface AmqpConnection {
+  createChannel(): Promise<amqp.Channel>;
+  close(): Promise<void>;
+}
+
 export class QueueServiceImpl implements QueueService {
-  private connection: any = null;
+  private connection: AmqpConnection | null = null;
   private channel: amqp.Channel | null = null;
   private config = ConfigService.getInstance().getRabbitMQConfig();
   private cacheService: CacheServiceImpl;
@@ -53,7 +58,7 @@ export class QueueServiceImpl implements QueueService {
 
   async connect(): Promise<void> {
     try {
-      this.connection = await amqp.connect(this.config.url);
+      this.connection = (await amqp.connect(this.config.url)) as AmqpConnection;
       this.channel = await this.connection.createChannel();
 
       await this.channel!.assertQueue(this.config.queueName, {
