@@ -1,6 +1,5 @@
 import { FindManyOptions } from 'typeorm';
 import { Department } from '@/entities/department.entity';
-import { Employee } from '@/entities/employee.entity';
 import { LeaveRequest } from '@/entities/leave-request.entity';
 import { PaginationParams, LeaveRequestStatus } from '@/types';
 
@@ -8,8 +7,8 @@ export interface DepartmentRepository {
   findById(id: number): Promise<Department | null>;
   findByName(name: string): Promise<Department | null>;
   findAll(options?: FindManyOptions<Department>): Promise<Department[]>;
-  findWithEmployees(id: number): Promise<Department | null>;
-  findEmployeesByDepartment(
+  findWithUsers(id: number): Promise<Department | null>;
+  findUsersByDepartment(
     departmentId: number,
     pagination: PaginationParams
   ): Promise<{ departments: Department[]; total: number }>;
@@ -19,25 +18,10 @@ export interface DepartmentRepository {
   count(): Promise<number>;
 }
 
-export interface EmployeeRepository {
-  findById(id: number): Promise<Employee | null>;
-  findByEmail(email: string): Promise<Employee | null>;
-  findByDepartmentId(
-    departmentId: number,
-    pagination?: PaginationParams
-  ): Promise<{ employees: Employee[]; total: number }>;
-  findWithLeaveHistory(id: number): Promise<Employee | null>;
-  findAll(options?: FindManyOptions<Employee>): Promise<Employee[]>;
-  create(data: Partial<Employee>): Promise<Employee>;
-  update(id: number, data: Partial<Employee>): Promise<Employee>;
-  delete(id: number): Promise<void>;
-  count(options?: FindManyOptions<Employee>): Promise<number>;
-}
-
 export interface LeaveRequestRepository {
   findById(id: number): Promise<LeaveRequest | null>;
-  findByEmployeeId(
-    employeeId: number,
+  findByUserId(
+    userId: number,
     pagination?: PaginationParams
   ): Promise<{ leaveRequests: LeaveRequest[]; total: number }>;
   findByStatus(
@@ -46,7 +30,7 @@ export interface LeaveRequestRepository {
   ): Promise<{ leaveRequests: LeaveRequest[]; total: number }>;
   findPendingRequests(): Promise<LeaveRequest[]>;
   findOverlappingRequests(
-    employeeId: number,
+    userId: number,
     startDate: Date,
     endDate: Date
   ): Promise<LeaveRequest[]>;

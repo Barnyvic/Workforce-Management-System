@@ -15,13 +15,13 @@ export class LeaveRequestRepositoryImpl implements LeaveRequestRepository {
     return this.repository.findOne({ where: { id } });
   }
 
-  async findByEmployeeId(
-    employeeId: number,
+  async findByUserId(
+    userId: number,
     pagination?: PaginationParams
   ): Promise<{ leaveRequests: LeaveRequest[]; total: number }> {
     const options: FindManyOptions<LeaveRequest> = {
-      where: { employeeId },
-      relations: ['employee'],
+      where: { userId },
+      relations: ['user'],
       order: { createdAt: 'DESC' },
     };
 
@@ -42,7 +42,7 @@ export class LeaveRequestRepositoryImpl implements LeaveRequestRepository {
   ): Promise<{ leaveRequests: LeaveRequest[]; total: number }> {
     const options: FindManyOptions<LeaveRequest> = {
       where: { status },
-      relations: ['employee'],
+      relations: ['user'],
       order: { createdAt: 'DESC' },
     };
 
@@ -60,19 +60,19 @@ export class LeaveRequestRepositoryImpl implements LeaveRequestRepository {
   async findPendingRequests(): Promise<LeaveRequest[]> {
     return this.repository.find({
       where: { status: LeaveRequestStatus.PENDING },
-      relations: ['employee'],
+      relations: ['user'],
       order: { createdAt: 'ASC' },
     });
   }
 
   async findOverlappingRequests(
-    employeeId: number,
+    userId: number,
     startDate: Date,
     endDate: Date
   ): Promise<LeaveRequest[]> {
     return this.repository.find({
       where: {
-        employeeId,
+        userId,
         status: In([LeaveRequestStatus.PENDING, LeaveRequestStatus.APPROVED]),
         startDate: Between(startDate, endDate),
       },
@@ -84,7 +84,7 @@ export class LeaveRequestRepositoryImpl implements LeaveRequestRepository {
   ): Promise<LeaveRequest[]> {
     return this.repository.find({
       ...options,
-      relations: ['employee'],
+      relations: ['user'],
       order: { createdAt: 'DESC' },
     });
   }

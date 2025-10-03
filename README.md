@@ -229,13 +229,29 @@ CREATE TABLE departments (
 );
 ```
 
-#### Employees
+## Database Schema
+
+### Tables
+
+#### Departments
 ```sql
-CREATE TABLE employees (
+CREATE TABLE departments (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(255) UNIQUE NOT NULL,
+  createdAt DATETIME NOT NULL,
+  updatedAt DATETIME NOT NULL
+);
+```
+
+#### Users
+```sql
+CREATE TABLE users (
   id INT PRIMARY KEY AUTO_INCREMENT,
   name VARCHAR(255) NOT NULL,
   email VARCHAR(255) UNIQUE NOT NULL,
-  departmentId INT NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  role ENUM('ADMIN', 'MANAGER', 'EMPLOYEE') DEFAULT 'EMPLOYEE',
+  departmentId INT NULL,
   createdAt DATETIME NOT NULL,
   updatedAt DATETIME NOT NULL,
   FOREIGN KEY (departmentId) REFERENCES departments(id)
@@ -246,20 +262,26 @@ CREATE TABLE employees (
 ```sql
 CREATE TABLE leave_requests (
   id INT PRIMARY KEY AUTO_INCREMENT,
-  employeeId INT NOT NULL,
+  userId INT NOT NULL,
   startDate DATE NOT NULL,
   endDate DATE NOT NULL,
   status ENUM('PENDING', 'APPROVED', 'REJECTED', 'PENDING_APPROVAL') DEFAULT 'PENDING',
   createdAt DATETIME NOT NULL,
   updatedAt DATETIME NOT NULL,
-  FOREIGN KEY (employeeId) REFERENCES employees(id)
+  FOREIGN KEY (userId) REFERENCES users(id)
 );
 ```
 
+### User Roles
+- **ADMIN**: Full system access, can manage users and departments
+- **MANAGER**: Can approve/reject leave requests, manage team members  
+- **EMPLOYEE**: Can create leave requests, view own data
+
 ### Indexes
-- `idx_employees_email` - Unique index on employee email
-- `idx_employees_department_id` - Index on department foreign key
-- `idx_leave_requests_employee_id` - Index on employee foreign key
+- `idx_users_email` - Unique index on user email
+- `idx_users_department_id` - Index on department foreign key
+- `idx_users_role` - Index on user role
+- `idx_leave_requests_user_id` - Index on user foreign key
 - `idx_leave_requests_status` - Index on leave request status
 - `idx_leave_requests_dates` - Composite index on start and end dates
 

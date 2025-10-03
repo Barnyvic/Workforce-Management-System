@@ -35,7 +35,10 @@ export class DepartmentServiceImpl implements DepartmentService {
         };
       }
 
-      const department = await this.departmentRepository.create(data);
+      const department = await this.departmentRepository.create({
+        name: data.name,
+      });
+
       logger.info('Department created successfully', {
         departmentId: department.id,
         name: department.name,
@@ -98,12 +101,10 @@ export class DepartmentServiceImpl implements DepartmentService {
     }
   }
 
-  async getDepartmentWithEmployees(
-    id: number
-  ): Promise<ApiResponse<Department>> {
-    logger.info('Getting department with employees', { departmentId: id });
+  async getDepartmentWithUsers(id: number): Promise<ApiResponse<Department>> {
+    logger.info('Getting department with users', { departmentId: id });
     try {
-      const department = await this.departmentRepository.findWithEmployees(id);
+      const department = await this.departmentRepository.findWithUsers(id);
       if (!department) {
         logger.warn('Department not found', { departmentId: id });
         return {
@@ -113,10 +114,10 @@ export class DepartmentServiceImpl implements DepartmentService {
         };
       }
 
-      logger.info('Department with employees retrieved successfully', {
+      logger.info('Department with users retrieved successfully', {
         departmentId: id,
         name: department.name,
-        employeeCount: department.employees?.length || 0,
+        userCount: department.users?.length || 0,
       });
       return {
         success: true,
@@ -124,7 +125,7 @@ export class DepartmentServiceImpl implements DepartmentService {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      logger.error('Failed to get department with employees', {
+      logger.error('Failed to get department with users', {
         error: error instanceof Error ? error.message : 'Unknown error',
         departmentId: id,
       });
@@ -133,27 +134,36 @@ export class DepartmentServiceImpl implements DepartmentService {
         error:
           error instanceof Error
             ? error.message
-            : 'Failed to get department with employees',
+            : 'Failed to get department with users',
         timestamp: new Date().toISOString(),
       };
     }
   }
 
-  async getEmployeesByDepartment(
+  async getUsersByDepartment(
     departmentId: number,
     pagination: PaginationParams
   ): Promise<ApiResponse<Department[]>> {
-    logger.info('Getting employees by department', {
+    logger.info('Getting users by department', {
       departmentId,
       pagination,
     });
     try {
-      const result = await this.departmentRepository.findEmployeesByDepartment(
+      const department = await this.departmentRepository.findById(departmentId);
+      if (!department) {
+        logger.warn('Department not found', { departmentId });
+        return {
+          success: false,
+          error: 'Department not found',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      const result = await this.departmentRepository.findUsersByDepartment(
         departmentId,
         pagination
       );
-
-      logger.info('Employees by department retrieved successfully', {
+      logger.info('Users by department retrieved successfully', {
         departmentId,
         total: result.total,
         returned: result.departments.length,
@@ -164,7 +174,7 @@ export class DepartmentServiceImpl implements DepartmentService {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      logger.error('Failed to get employees by department', {
+      logger.error('Failed to get users by department', {
         error: error instanceof Error ? error.message : 'Unknown error',
         departmentId,
       });
@@ -173,7 +183,7 @@ export class DepartmentServiceImpl implements DepartmentService {
         error:
           error instanceof Error
             ? error.message
-            : 'Failed to get employees by department',
+            : 'Failed to get users by department',
         timestamp: new Date().toISOString(),
       };
     }

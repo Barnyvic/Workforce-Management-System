@@ -8,21 +8,21 @@ import {
   JoinColumn,
   Index,
 } from 'typeorm';
-import { Employee } from './employee.entity';
+import { User } from './user.entity';
 import { LeaveRequestStatus } from '@/types';
 
 @Entity('leave_requests')
-@Index(['employeeId'])
+@Index(['userId'])
 @Index(['status'])
 @Index(['startDate', 'endDate'])
 @Index(['createdAt'])
-@Index(['employeeId', 'status'])
+@Index(['userId', 'status'])
 export class LeaveRequest {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ name: 'employee_id' })
-  employeeId!: number;
+  @Column({ name: 'user_id' })
+  userId!: number;
 
   @Column({ type: 'date', name: 'start_date' })
   startDate!: Date;
@@ -43,9 +43,9 @@ export class LeaveRequest {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  @ManyToOne(() => Employee, (employee) => employee.leaveRequests)
-  @JoinColumn({ name: 'employee_id' })
-  employee!: Employee;
+  @ManyToOne(() => User, (user) => user.leaveRequests)
+  @JoinColumn({ name: 'user_id' })
+  user!: User;
 
   get durationInDays(): number {
     const timeDiff = this.endDate.getTime() - this.startDate.getTime();

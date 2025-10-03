@@ -1,8 +1,8 @@
 import { LeaveRequest } from '@/entities/leave-request.entity';
 import { LeaveRequestRepository } from '@/interfaces/repository.interfaces';
 import { LeaveRequestRepositoryImpl } from '@/repositories/leave-request.repository';
-import { EmployeeRepository } from '@/interfaces/repository.interfaces';
-import { EmployeeRepositoryImpl } from '@/repositories/employee.repository';
+import { UserRepository } from '@/interfaces/user-repository.interface';
+import { UserRepositoryImpl } from '@/repositories/user.repository';
 import {
   PaginationParams,
   ApiResponse,
@@ -18,18 +18,17 @@ import { logger } from '@/services/logger.service';
 
 export class LeaveRequestServiceImpl implements LeaveRequestService {
   private leaveRequestRepository: LeaveRequestRepository;
-  private employeeRepository: EmployeeRepository;
+  private userRepository: UserRepository;
   private queueService: QueueServiceImpl;
 
   constructor(
     leaveRequestRepository?: LeaveRequestRepository,
-    employeeRepository?: EmployeeRepository,
+    userRepository?: UserRepository,
     queueService?: QueueServiceImpl
   ) {
     this.leaveRequestRepository =
       leaveRequestRepository || new LeaveRequestRepositoryImpl();
-    this.employeeRepository =
-      employeeRepository || new EmployeeRepositoryImpl();
+    this.userRepository = userRepository || new UserRepositoryImpl();
     this.queueService = queueService || new QueueServiceImpl();
   }
 
@@ -37,19 +36,19 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
     data: CreateLeaveRequestDto
   ): Promise<ApiResponse<LeaveRequest>> {
     logger.info('Creating leave request', {
-      employeeId: data.employeeId,
+      userId: data.userId,
       startDate: data.startDate,
       endDate: data.endDate,
     });
     try {
-      const employee = await this.employeeRepository.findById(data.employeeId);
-      if (!employee) {
-        logger.warn('Leave request creation failed - employee not found', {
-          employeeId: data.employeeId,
+      const user = await this.userRepository.findById(data.userId);
+      if (!user) {
+        logger.warn('Leave request creation failed - user not found', {
+          userId: data.userId,
         });
         return {
           success: false,
-          error: 'Employee not found',
+          error: 'User not found',
           timestamp: new Date().toISOString(),
         };
       }
@@ -59,7 +58,7 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
 
       if (startDate >= endDate) {
         logger.warn('Leave request creation failed - invalid date range', {
-          employeeId: data.employeeId,
+          userId: data.userId,
           startDate: data.startDate,
           endDate: data.endDate,
         });
@@ -72,7 +71,7 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
 
       if (startDate < new Date()) {
         logger.warn('Leave request creation failed - start date in past', {
-          employeeId: data.employeeId,
+          userId: data.userId,
           startDate: data.startDate,
         });
         return {
@@ -84,14 +83,14 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
 
       const overlappingRequests =
         await this.leaveRequestRepository.findOverlappingRequests(
-          data.employeeId,
+          data.userId,
           startDate,
           endDate
         );
 
       if (overlappingRequests.length > 0) {
         logger.warn('Leave request creation failed - overlapping requests', {
-          employeeId: data.employeeId,
+          userId: data.userId,
           overlappingCount: overlappingRequests.length,
         });
         return {
@@ -103,7 +102,7 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
       }
 
       const leaveRequest = await this.leaveRequestRepository.create({
-        employeeId: data.employeeId,
+        userId: data.userId,
         startDate,
         endDate,
         status: LeaveRequestStatus.PENDING,
@@ -114,7 +113,7 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
         type: 'leave.requested',
         data: {
           leaveRequestId: leaveRequest.id,
-          employeeId: data.employeeId,
+          userId: data.userId,
           startDate: data.startDate,
           endDate: data.endDate,
         },
@@ -123,7 +122,7 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
 
       logger.info('Leave request created successfully', {
         leaveRequestId: leaveRequest.id,
-        employeeId: data.employeeId,
+        userId: data.userId,
         duration: leaveRequest.durationInDays,
       });
       return {
@@ -135,7 +134,7 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
     } catch (error) {
       logger.error('Failed to create leave request', {
         error: error instanceof Error ? error.message : 'Unknown error',
-        employeeId: data.employeeId,
+        userId: data.userId,
       });
       return {
         success: false,
@@ -163,7 +162,7 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
 
       logger.info('Leave request retrieved successfully', {
         leaveRequestId: id,
-        employeeId: leaveRequest.employeeId,
+        userId: leaveRequest.userId,
         status: leaveRequest.status,
       });
       return {
@@ -187,21 +186,21 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
     }
   }
 
-  async getLeaveRequestsByEmployee(
-    employeeId: number,
+  async getLeaveRequestsByUser(
+    userId: number,
     pagination?: PaginationParams
   ): Promise<ApiResponse<LeaveRequest[]>> {
-    logger.info('Getting leave requests by employee', {
-      employeeId,
+    logger.info('Getting leave requests by user', {
+      userId,
       pagination,
     });
     try {
-      const result = await this.leaveRequestRepository.findByEmployeeId(
-        employeeId,
+      const result = await this.leaveRequestRepository.findByUserId(
+        userId,
         pagination
       );
-      logger.info('Leave requests by employee retrieved successfully', {
-        employeeId,
+      logger.info('Leave requests by user retrieved successfully', {
+        userId,
         total: result.total,
         returned: result.leaveRequests.length,
       });
@@ -211,16 +210,16 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      logger.error('Failed to get leave requests by employee', {
+      logger.error('Failed to get leave requests by user', {
         error: error instanceof Error ? error.message : 'Unknown error',
-        employeeId,
+        userId,
       });
       return {
         success: false,
         error:
           error instanceof Error
             ? error.message
-            : 'Failed to get leave requests by employee',
+            : 'Failed to get leave requests by user',
         timestamp: new Date().toISOString(),
       };
     }
@@ -399,7 +398,7 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
       await this.leaveRequestRepository.delete(id);
       logger.info('Leave request deleted successfully', {
         leaveRequestId: id,
-        employeeId: leaveRequest.employeeId,
+        userId: leaveRequest.userId,
         status: leaveRequest.status,
       });
       return {

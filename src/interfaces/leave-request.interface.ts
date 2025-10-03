@@ -7,7 +7,7 @@ import {
 } from '@/types';
 
 export interface CreateLeaveRequestDto {
-  employeeId: number;
+  userId: number;
   startDate: string;
   endDate: string;
 }
@@ -17,8 +17,8 @@ export interface LeaveRequestService {
     data: CreateLeaveRequestDto
   ): Promise<ApiResponse<LeaveRequest>>;
   getLeaveRequestById(id: number): Promise<ApiResponse<LeaveRequest>>;
-  getLeaveRequestsByEmployee(
-    employeeId: number,
+  getLeaveRequestsByUser(
+    userId: number,
     pagination?: PaginationParams
   ): Promise<ApiResponse<LeaveRequest[]>>;
   getLeaveRequestsByStatus(

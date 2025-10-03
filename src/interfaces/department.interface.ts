@@ -8,8 +8,8 @@ export interface CreateDepartmentDto {
 export interface DepartmentService {
   createDepartment(data: CreateDepartmentDto): Promise<ApiResponse<Department>>;
   getDepartmentById(id: number): Promise<ApiResponse<Department>>;
-  getDepartmentWithEmployees(id: number): Promise<ApiResponse<Department>>;
-  getEmployeesByDepartment(
+  getDepartmentWithUsers(id: number): Promise<ApiResponse<Department>>;
+  getUsersByDepartment(
     departmentId: number,
     pagination: PaginationParams
   ): Promise<ApiResponse<Department[]>>;

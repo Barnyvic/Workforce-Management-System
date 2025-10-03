@@ -25,14 +25,14 @@ export class DepartmentRepositoryImpl implements DepartmentRepository {
     return this.repository.find(options);
   }
 
-  async findWithEmployees(id: number): Promise<Department | null> {
+  async findWithUsers(id: number): Promise<Department | null> {
     return this.repository.findOne({
       where: { id },
-      relations: ['employees'],
+      relations: ['users'],
     });
   }
 
-  async findEmployeesByDepartment(
+  async findUsersByDepartment(
     departmentId: number,
     pagination: PaginationParams
   ): Promise<{ departments: Department[]; total: number }> {
@@ -41,7 +41,7 @@ export class DepartmentRepositoryImpl implements DepartmentRepository {
 
     const [departments, total] = await this.repository.findAndCount({
       where: { id: departmentId },
-      relations: ['employees'],
+      relations: ['users'],
       skip,
       take: limit,
     });

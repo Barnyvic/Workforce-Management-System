@@ -63,14 +63,29 @@ export const schemas = {
     name: Joi.string().min(2).max(255).required(),
   }),
 
-  createEmployee: Joi.object({
+  createUser: Joi.object({
     name: Joi.string().min(2).max(255).required(),
     email: Joi.string().email().required(),
-    departmentId: Joi.number().integer().positive().required(),
+    password: Joi.string().min(6).required(),
+    role: Joi.string().valid('ADMIN', 'MANAGER', 'EMPLOYEE').required(),
+    departmentId: Joi.number().integer().positive().optional(),
+  }),
+
+  login: Joi.object({
+    email: Joi.string().email().required(),
+    password: Joi.string().required(),
+  }),
+
+  updateUser: Joi.object({
+    name: Joi.string().min(2).max(255).optional(),
+    email: Joi.string().email().optional(),
+    password: Joi.string().min(6).optional(),
+    role: Joi.string().valid('ADMIN', 'MANAGER', 'EMPLOYEE').optional(),
+    departmentId: Joi.number().integer().positive().optional(),
   }),
 
   createLeaveRequest: Joi.object({
-    employeeId: Joi.number().integer().positive().required(),
+    userId: Joi.number().integer().positive().required(),
     startDate: Joi.date().iso().greater('now').required(),
     endDate: Joi.date().iso().greater(Joi.ref('startDate')).required(),
   }),

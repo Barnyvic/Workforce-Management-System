@@ -1,14 +1,10 @@
 import { Request, Response } from 'express';
-import {
-  DepartmentService,
-  DepartmentServiceImpl,
-} from '@/services/department.service';
-import { PaginationParams } from '@/types';
+import { DepartmentServiceImpl } from '@/services/department.service';
 
 export class DepartmentController {
-  private departmentService: DepartmentService;
+  private departmentService: DepartmentServiceImpl;
 
-  constructor(departmentService?: DepartmentService) {
+  constructor(departmentService?: DepartmentServiceImpl) {
     this.departmentService = departmentService || new DepartmentServiceImpl();
   }
 
@@ -33,7 +29,28 @@ export class DepartmentController {
     res.status(statusCode).json(result);
   };
 
-  getDepartmentWithEmployees = async (
+  getUsersByDepartment = async (req: Request, res: Response): Promise<void> => {
+    const departmentId = parseInt(req.params['id'] || '0', 10);
+    if (departmentId === 0) {
+      res.status(400).json({
+        success: false,
+        error: 'Invalid department ID',
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+    const pagination = {
+      page: parseInt(req.query['page'] as string) || 1,
+      limit: parseInt(req.query['limit'] as string) || 10,
+    };
+    const result = await this.departmentService.getUsersByDepartment(
+      departmentId,
+      pagination
+    );
+    res.status(200).json(result);
+  };
+
+  getDepartmentWithUsers = async (
     req: Request,
     res: Response
   ): Promise<void> => {
@@ -46,55 +63,14 @@ export class DepartmentController {
       });
       return;
     }
-    const result = await this.departmentService.getDepartmentWithEmployees(id);
+    const result = await this.departmentService.getDepartmentWithUsers(id);
     const statusCode = result.success ? 200 : 404;
     res.status(statusCode).json(result);
-  };
-
-  getEmployeesByDepartment = async (
-    req: Request,
-    res: Response
-  ): Promise<void> => {
-    const departmentId = parseInt(req.params['id'] || '0', 10);
-    if (departmentId === 0) {
-      res.status(400).json({
-        success: false,
-        error: 'Invalid department ID',
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-    const pagination: PaginationParams = {
-      page: parseInt((req.query['page'] as string) || '1', 10),
-      limit: parseInt((req.query['limit'] as string) || '10', 10),
-    };
-
-    const result = await this.departmentService.getEmployeesByDepartment(
-      departmentId,
-      pagination
-    );
-    const statusCode = result.success ? 200 : 404;
-
-    if (result.success && result.data) {
-      const response = {
-        ...result,
-        pagination: {
-          page: pagination.page,
-          limit: pagination.limit,
-          total: result.data.length,
-          totalPages: Math.ceil(result.data.length / pagination.limit),
-        },
-      };
-      res.status(statusCode).json(response);
-    } else {
-      res.status(statusCode).json(result);
-    }
   };
 
   getAllDepartments = async (req: Request, res: Response): Promise<void> => {
     const result = await this.departmentService.getAllDepartments();
-    const statusCode = result.success ? 200 : 500;
-    res.status(statusCode).json(result);
+    res.status(200).json(result);
   };
 
   updateDepartment = async (req: Request, res: Response): Promise<void> => {

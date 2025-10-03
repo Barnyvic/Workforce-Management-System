@@ -7,7 +7,7 @@ import {
   OneToMany,
   Index,
 } from 'typeorm';
-import { Employee } from './employee.entity';
+import { User } from './user.entity';
 
 @Entity('departments')
 @Index(['name'], { unique: true })
@@ -25,6 +25,6 @@ export class Department {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  @OneToMany(() => Employee, (employee) => employee.department)
-  employees!: Employee[];
+  @OneToMany(() => User, (user) => user.department)
+  users!: User[];
 }

@@ -1,46 +1,117 @@
 import { Router } from 'express';
 import Joi from 'joi';
 import { DepartmentController } from '@/controllers/department.controller';
-import { EmployeeController } from '@/controllers/employee.controller';
+import { UserController } from '@/controllers/user.controller';
 import { LeaveRequestController } from '@/controllers/leave-request.controller';
 import { HealthController } from '@/controllers/health.controller';
 import { validateRequest, schemas } from '@/middleware/validation.middleware';
+import {
+  authenticateToken,
+  requireAdmin,
+  requireManagerOrAdmin,
+} from '@/middleware/auth.middleware';
 
 const router = Router();
 
 const departmentController = new DepartmentController();
-const employeeController = new EmployeeController();
+const userController = new UserController();
 const leaveRequestController = new LeaveRequestController();
 const healthController = new HealthController();
 
 router.post(
+  '/auth/login',
+  validateRequest({ body: schemas.login }),
+  userController.login
+);
+
+router.get('/auth/profile', authenticateToken, userController.getProfile);
+
+router.post(
+  '/users',
+  validateRequest({ body: schemas.createUser }),
+  requireAdmin,
+  userController.createUser
+);
+
+router.get(
+  '/users/:id',
+  validateRequest({ params: schemas.idParam }),
+  authenticateToken,
+  userController.getUserById
+);
+
+router.get(
+  '/users/:id/leave-history',
+  validateRequest({ params: schemas.idParam }),
+  authenticateToken,
+  userController.getUserWithLeaveHistory
+);
+
+router.get(
+  '/departments/:departmentId/users',
+  validateRequest({
+    params: Joi.object({ departmentId: schemas.idParam.extract('id') }),
+    query: schemas.paginationQuery,
+  }),
+  authenticateToken,
+  userController.getUsersByDepartment
+);
+
+router.get('/users', authenticateToken, userController.getAllUsers);
+
+router.put(
+  '/users/:id',
+  validateRequest({
+    params: schemas.idParam,
+    body: schemas.updateUser,
+  }),
+  authenticateToken,
+  userController.updateUser
+);
+
+router.delete(
+  '/users/:id',
+  validateRequest({ params: schemas.idParam }),
+  requireAdmin,
+  userController.deleteUser
+);
+
+router.post(
   '/departments',
   validateRequest({ body: schemas.createDepartment }),
+  requireAdmin,
   departmentController.createDepartment
 );
 
 router.get(
   '/departments/:id',
   validateRequest({ params: schemas.idParam }),
+  authenticateToken,
   departmentController.getDepartmentById
 );
 
 router.get(
-  '/departments/:id/employees',
+  '/departments/:id/users',
   validateRequest({
     params: schemas.idParam,
     query: schemas.paginationQuery,
   }),
-  departmentController.getEmployeesByDepartment
+  authenticateToken,
+  departmentController.getUsersByDepartment
 );
 
 router.get(
-  '/departments/:id/employees-with-department',
+  '/departments/:id/users-with-department',
   validateRequest({ params: schemas.idParam }),
-  departmentController.getDepartmentWithEmployees
+  authenticateToken,
+  departmentController.getDepartmentWithUsers
 );
 
-router.get('/departments', departmentController.getAllDepartments);
+router.get(
+  '/departments',
+  authenticateToken,
+  departmentController.getAllDepartments
+);
 
 router.put(
   '/departments/:id',
@@ -48,78 +119,39 @@ router.put(
     params: schemas.idParam,
     body: schemas.createDepartment,
   }),
+  requireAdmin,
   departmentController.updateDepartment
 );
 
 router.delete(
   '/departments/:id',
   validateRequest({ params: schemas.idParam }),
+  requireAdmin,
   departmentController.deleteDepartment
-);
-
-router.post(
-  '/employees',
-  validateRequest({ body: schemas.createEmployee }),
-  employeeController.createEmployee
-);
-
-router.get(
-  '/employees/:id',
-  validateRequest({ params: schemas.idParam }),
-  employeeController.getEmployeeById
-);
-
-router.get(
-  '/employees/:id/leave-history',
-  validateRequest({ params: schemas.idParam }),
-  employeeController.getEmployeeWithLeaveHistory
-);
-
-router.get(
-  '/departments/:departmentId/employees',
-  validateRequest({
-    params: Joi.object({ departmentId: schemas.idParam.extract('id') }),
-    query: schemas.paginationQuery,
-  }),
-  employeeController.getEmployeesByDepartment
-);
-
-router.get('/employees', employeeController.getAllEmployees);
-
-router.put(
-  '/employees/:id',
-  validateRequest({
-    params: schemas.idParam,
-    body: schemas.createEmployee,
-  }),
-  employeeController.updateEmployee
-);
-
-router.delete(
-  '/employees/:id',
-  validateRequest({ params: schemas.idParam }),
-  employeeController.deleteEmployee
 );
 
 router.post(
   '/leave-requests',
   validateRequest({ body: schemas.createLeaveRequest }),
+  authenticateToken,
   leaveRequestController.createLeaveRequest
 );
 
 router.get(
   '/leave-requests/:id',
   validateRequest({ params: schemas.idParam }),
+  authenticateToken,
   leaveRequestController.getLeaveRequestById
 );
 
 router.get(
-  '/employees/:employeeId/leave-requests',
+  '/users/:userId/leave-requests',
   validateRequest({
-    params: Joi.object({ employeeId: schemas.idParam.extract('id') }),
+    params: Joi.object({ userId: schemas.idParam.extract('id') }),
     query: schemas.paginationQuery,
   }),
-  leaveRequestController.getLeaveRequestsByEmployee
+  authenticateToken,
+  leaveRequestController.getLeaveRequestsByUser
 );
 
 router.get(
@@ -130,6 +162,7 @@ router.get(
     }),
     query: schemas.paginationQuery,
   }),
+  authenticateToken,
   leaveRequestController.getLeaveRequestsByStatus
 );
 
@@ -139,14 +172,20 @@ router.put(
     params: schemas.idParam,
     body: schemas.updateLeaveRequestStatus,
   }),
+  requireManagerOrAdmin,
   leaveRequestController.updateLeaveRequestStatus
 );
 
-router.get('/leave-requests', leaveRequestController.getAllLeaveRequests);
+router.get(
+  '/leave-requests',
+  authenticateToken,
+  leaveRequestController.getAllLeaveRequests
+);
 
 router.delete(
   '/leave-requests/:id',
   validateRequest({ params: schemas.idParam }),
+  requireManagerOrAdmin,
   leaveRequestController.deleteLeaveRequest
 );
 

@@ -1,4 +1,3 @@
-
 export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
@@ -61,17 +60,17 @@ export interface AppConfig {
   };
 }
 
+export enum UserRole {
+  ADMIN = 'ADMIN',
+  MANAGER = 'MANAGER',
+  EMPLOYEE = 'EMPLOYEE',
+}
+
 export enum LeaveRequestStatus {
   PENDING = 'PENDING',
   APPROVED = 'APPROVED',
   REJECTED = 'REJECTED',
   PENDING_APPROVAL = 'PENDING_APPROVAL',
-}
-
-export enum UserRole {
-  ADMIN = 'ADMIN',
-  EMPLOYEE = 'EMPLOYEE',
-  MANAGER = 'MANAGER',
 }
 
 export interface RetryPolicy {
