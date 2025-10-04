@@ -11,7 +11,9 @@ import {
   PaginatedResponse,
   PaginationMetadata,
 } from '@/types';
+import { createPaginatedResponse } from '@/utils/pagination.util';
 import { QueueServiceImpl } from '@/services/queue.service';
+import { CacheServiceImpl } from '@/services/cache.service';
 import {
   CreateLeaveRequestDto,
   LeaveRequestService,
@@ -22,16 +24,19 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
   private leaveRequestRepository: LeaveRequestRepository;
   private userRepository: UserRepository;
   private queueService: QueueServiceImpl;
+  private cacheService: CacheServiceImpl;
 
   constructor(
     leaveRequestRepository?: LeaveRequestRepository,
     userRepository?: UserRepository,
-    queueService?: QueueServiceImpl
+    queueService?: QueueServiceImpl,
+    cacheService?: CacheServiceImpl
   ) {
     this.leaveRequestRepository =
       leaveRequestRepository || new LeaveRequestRepositoryImpl();
     this.userRepository = userRepository || new UserRepositoryImpl();
     this.queueService = queueService || new QueueServiceImpl();
+    this.cacheService = cacheService || new CacheServiceImpl();
   }
 
   async createLeaveRequest(
@@ -103,29 +108,69 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
         };
       }
 
+      const durationInDays =
+        Math.ceil(
+          (endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24)
+        ) + 1;
+
+      if (durationInDays <= 0) {
+        logger.warn('Leave request creation failed - invalid duration', {
+          userId: data.userId,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          durationInDays,
+        });
+        return {
+          success: false,
+          error: 'End date must be after start date',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      let initialStatus: LeaveRequestStatus;
+      if (durationInDays <= 2) {
+        initialStatus = LeaveRequestStatus.APPROVED;
+        logger.info('Auto-approving short leave request', {
+          userId: data.userId,
+          durationInDays,
+        });
+      } else {
+        initialStatus = LeaveRequestStatus.PENDING_APPROVAL;
+        logger.info(
+          'Leave request requires manual approval (duration > 2 days)',
+          {
+            userId: data.userId,
+            durationInDays,
+          }
+        );
+      }
+
       const leaveRequest = await this.leaveRequestRepository.create({
         userId: data.userId,
         startDate,
         endDate,
-        status: LeaveRequestStatus.PENDING,
+        status: initialStatus,
       });
 
-      await this.queueService.publishLeaveRequest({
-        id: leaveRequest.id.toString(),
-        type: 'leave.requested',
-        data: {
-          leaveRequestId: leaveRequest.id,
-          userId: data.userId,
-          startDate: data.startDate,
-          endDate: data.endDate,
-        },
-        timestamp: new Date().toISOString(),
-      });
+      if (initialStatus === LeaveRequestStatus.PENDING_APPROVAL) {
+        await this.queueService.publishLeaveRequest({
+          id: leaveRequest.id.toString(),
+          type: 'leave.requested',
+          data: {
+            leaveRequestId: leaveRequest.id,
+            userId: data.userId,
+            startDate: data.startDate,
+            endDate: data.endDate,
+          },
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       logger.info('Leave request created successfully', {
         leaveRequestId: leaveRequest.id,
         userId: data.userId,
-        duration: leaveRequest.durationInDays,
+        duration: durationInDays,
+        status: initialStatus,
       });
       return {
         success: true,
@@ -206,13 +251,11 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
         total: result.total,
         returned: result.leaveRequests.length,
       });
-      return {
-        success: true,
-        data: result.leaveRequests.map((lr) =>
-          lr.toSafeObject()
-        ) as LeaveRequest[],
-        timestamp: new Date().toISOString(),
-      };
+      return createPaginatedResponse(
+        result.leaveRequests.map((lr) => lr.toSafeObject()) as LeaveRequest[],
+        pagination,
+        result.total
+      );
     } catch (error) {
       logger.error('Failed to get leave requests by user', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -244,13 +287,11 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
         total: result.total,
         returned: result.leaveRequests.length,
       });
-      return {
-        success: true,
-        data: result.leaveRequests.map((lr) =>
-          lr.toSafeObject()
-        ) as LeaveRequest[],
-        timestamp: new Date().toISOString(),
-      };
+      return createPaginatedResponse(
+        result.leaveRequests.map((lr) => lr.toSafeObject()) as LeaveRequest[],
+        pagination,
+        result.total
+      );
     } catch (error) {
       logger.error('Failed to get leave requests by status', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -333,25 +374,15 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
         return;
       }
 
-      if (leaveRequest.status !== LeaveRequestStatus.PENDING) {
+      if (leaveRequest.status !== LeaveRequestStatus.PENDING_APPROVAL) {
         logger.info(
           `Leave request ${leaveRequestId} already processed with status: ${leaveRequest.status}`
         );
         return;
       }
 
-      const durationInDays = leaveRequest.durationInDays;
-      let newStatus: LeaveRequestStatus;
-
-      if (durationInDays <= 2) {
-        newStatus = LeaveRequestStatus.APPROVED;
-      } else {
-        newStatus = LeaveRequestStatus.PENDING_APPROVAL;
-      }
-
-      await this.leaveRequestRepository.updateStatus(leaveRequestId, newStatus);
       logger.info(
-        `Leave request ${leaveRequestId} processed: ${newStatus} (${durationInDays} days)`
+        `Leave request ${leaveRequestId} queued for manual approval workflow (${leaveRequest.durationInDays} days)`
       );
     } catch (error) {
       logger.error('Error processing leave request:', error);
@@ -363,12 +394,24 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
     pagination?: PaginationParams
   ): Promise<ApiResponse<LeaveRequest[]> | PaginatedResponse<LeaveRequest>> {
     logger.info('Getting all leave requests', { pagination });
+
+    // Generate cache key
+    const cacheKey = pagination
+      ? `leave-requests:all:page:${pagination.page}:limit:${pagination.limit}`
+      : 'leave-requests:all';
+
     try {
+      // Check cache first
+      const cached = await this.cacheService.get<string>(cacheKey);
+      if (cached) {
+        logger.info('Leave requests retrieved from cache', { cacheKey });
+        return JSON.parse(cached);
+      }
+
       if (pagination) {
         const { page, limit } = pagination;
         const skip = (page - 1) * limit;
 
-        // Use findAll and count for pagination
         const [leaveRequests, total] = await Promise.all([
           this.leaveRequestRepository.findAll({
             skip,
@@ -378,9 +421,6 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
           }),
           this.leaveRequestRepository.count(),
         ]);
-
-        // Create safe leave requests without user passwords
-        const safeLeaveRequests = leaveRequests.map((lr) => lr.toSafeObject());
 
         const totalPages = Math.ceil(total / limit);
         const paginationMetadata: PaginationMetadata = {
@@ -392,6 +432,16 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
           hasPreviousPage: page > 1,
         };
 
+        const result: PaginatedResponse<LeaveRequest> = {
+          success: true,
+          data: leaveRequests,
+          pagination: paginationMetadata,
+          timestamp: new Date().toISOString(),
+        };
+
+        // Cache the result for 2 minutes (shorter cache for dynamic data)
+        await this.cacheService.set(cacheKey, JSON.stringify(result), 120);
+
         logger.info(
           'All leave requests retrieved successfully with pagination',
           {
@@ -401,30 +451,27 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
           }
         );
 
-        return {
-          success: true,
-          data: safeLeaveRequests as LeaveRequest[],
-          pagination: paginationMetadata,
-          timestamp: new Date().toISOString(),
-        };
+        return result;
       } else {
         const leaveRequests = await this.leaveRequestRepository.findAll({
           order: { createdAt: 'DESC' },
           relations: ['user'],
         });
 
-        // Create safe leave requests without user passwords
-        const safeLeaveRequests = leaveRequests.map((lr) => lr.toSafeObject());
+        const result: ApiResponse<LeaveRequest[]> = {
+          success: true,
+          data: leaveRequests,
+          timestamp: new Date().toISOString(),
+        };
+
+        // Cache the result for 2 minutes (shorter cache for dynamic data)
+        await this.cacheService.set(cacheKey, JSON.stringify(result), 120);
 
         logger.info('All leave requests retrieved successfully', {
           count: leaveRequests.length,
         });
 
-        return {
-          success: true,
-          data: safeLeaveRequests as LeaveRequest[],
-          timestamp: new Date().toISOString(),
-        };
+        return result;
       }
     } catch (error) {
       logger.error('Failed to get all leave requests', {
@@ -453,10 +500,8 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
       let leaveRequests: LeaveRequest[];
 
       if (userInfo.role === 'ADMIN') {
-        // Admin can see all leave requests
         return this.getAllLeaveRequests(pagination);
       } else if (userInfo.role === 'MANAGER') {
-        // Manager can see leave requests for employees in their department
         if (!userInfo.departmentId) {
           logger.warn('Manager user has no department assigned', {
             userId: userInfo.userId,
@@ -490,7 +535,6 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
           });
         }
       } else {
-        // Employee can only see their own leave requests
         if (pagination) {
           const { page, limit } = pagination;
           const skip = (page - 1) * limit;
@@ -510,7 +554,6 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
         }
       }
 
-      // Create safe leave requests without user passwords
       const safeLeaveRequests = leaveRequests.map((lr) => lr.toSafeObject());
 
       logger.info('Leave requests with authorization retrieved successfully', {

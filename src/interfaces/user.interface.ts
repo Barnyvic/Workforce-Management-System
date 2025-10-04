@@ -23,13 +23,37 @@ export interface AuthResponse {
 }
 
 export interface UserService {
-  createUser(data: CreateUserDto): Promise<any>;
-  getUserById(id: number): Promise<any>;
-  getUserWithLeaveHistory(id: number): Promise<any>;
-  getUsersByDepartment(departmentId: number, pagination: any): Promise<any>;
-  getAllUsers(): Promise<any>;
-  updateUser(id: number, data: Partial<CreateUserDto>): Promise<any>;
-  deleteUser(id: number): Promise<any>;
-  login(data: LoginDto): Promise<any>;
-  validateToken(token: string): Promise<any>;
+  createUser(
+    data: CreateUserDto
+  ): Promise<import('@/types').ApiResponse<import('@/types').SafeUser>>;
+  getUserById(
+    id: number
+  ): Promise<import('@/types').ApiResponse<import('@/types').SafeUser>>;
+  getUserWithLeaveHistory(
+    id: number
+  ): Promise<import('@/types').ApiResponse<import('@/types').SafeUser>>;
+  getUsersByDepartment(
+    departmentId: number,
+    pagination: import('@/types').PaginationParams
+  ): Promise<import('@/types').PaginatedResponse<import('@/types').SafeUser>>;
+  getAllUsers(
+    pagination?: import('@/types').PaginationParams
+  ): Promise<
+    | import('@/types').ApiResponse<import('@/types').SafeUser[]>
+    | import('@/types').PaginatedResponse<import('@/types').SafeUser>
+  >;
+  updateUser(
+    id: number,
+    data: Partial<CreateUserDto>
+  ): Promise<import('@/types').ApiResponse<import('@/types').SafeUser>>;
+  deleteUser(id: number): Promise<import('@/types').ApiResponse<void>>;
+  login(data: LoginDto): Promise<import('@/types').ApiResponse<AuthResponse>>;
+  validateToken(token: string): Promise<
+    import('@/types').ApiResponse<{
+      userId: number;
+      role: string;
+      email: string;
+      name: string;
+    }>
+  >;
 }

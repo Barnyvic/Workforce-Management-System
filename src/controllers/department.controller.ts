@@ -1,11 +1,16 @@
 import { Request, Response } from 'express';
 import { DepartmentServiceImpl } from '@/services/department.service';
+import { CacheServiceImpl } from '@/services/cache.service';
 
 export class DepartmentController {
   private departmentService: DepartmentServiceImpl;
 
-  constructor(departmentService?: DepartmentServiceImpl) {
-    this.departmentService = departmentService || new DepartmentServiceImpl();
+  constructor(
+    cacheService?: CacheServiceImpl,
+    departmentService?: DepartmentServiceImpl
+  ) {
+    this.departmentService =
+      departmentService || new DepartmentServiceImpl(undefined, cacheService);
   }
 
   createDepartment = async (req: Request, res: Response): Promise<void> => {
@@ -63,6 +68,7 @@ export class DepartmentController {
       });
       return;
     }
+
     const result = await this.departmentService.getDepartmentWithUsers(id);
     const statusCode = result.success ? 200 : 404;
     res.status(statusCode).json(result);

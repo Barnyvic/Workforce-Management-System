@@ -131,29 +131,9 @@ export class LeaveRequestController {
       pagination = { page, limit };
     }
 
-    // Get user info from authenticated request
-    if (!req.user) {
-      res.status(401).json({
-        success: false,
-        error: 'Authentication required',
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
-    // For now, we'll need to get the user's department ID from the database
-    // This is a temporary solution - ideally the JWT should include departmentId
-    const userInfo: { userId: number; role: string; departmentId?: number } = {
-      userId: req.user.userId,
-      role: req.user.role,
-    };
-
-    // TODO: Get departmentId from user service or include it in JWT
-    // For now, we'll use the authorization method without departmentId for managers
-    const result = await this.leaveRequestService.getAllLeaveRequestsWithAuth(
-      userInfo,
-      pagination
-    );
+    // Since this route now requires admin role, we can directly call getAllLeaveRequests
+    const result =
+      await this.leaveRequestService.getAllLeaveRequests(pagination);
     res.status(200).json(result);
   };
 

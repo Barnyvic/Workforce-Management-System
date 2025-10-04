@@ -29,11 +29,12 @@ class Application {
   constructor() {
     this.app = express();
     this.cacheService = new CacheServiceImpl();
-    this.queueService = new QueueServiceImpl();
+    this.queueService = new QueueServiceImpl(this.cacheService);
     this.leaveRequestService = new LeaveRequestServiceImpl(
       undefined,
       undefined,
-      this.queueService
+      this.queueService,
+      this.cacheService
     );
     this.setupMiddleware();
     this.setupRoutes();

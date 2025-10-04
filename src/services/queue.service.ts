@@ -21,8 +21,8 @@ export class QueueServiceImpl implements QueueService {
     maxBackoffMs: 10000,
   };
 
-  constructor() {
-    this.cacheService = new CacheServiceImpl();
+  constructor(cacheService?: CacheServiceImpl) {
+    this.cacheService = cacheService || new CacheServiceImpl();
   }
 
   private generateIdempotencyKey(message: QueueMessage): string {

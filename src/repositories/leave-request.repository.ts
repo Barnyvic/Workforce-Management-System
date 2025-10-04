@@ -1,4 +1,4 @@
-import { Repository, FindManyOptions, Between, In } from 'typeorm';
+import { Repository, FindManyOptions, In } from 'typeorm';
 import { LeaveRequest } from '@/entities/leave-request.entity';
 import { LeaveRequestStatus, PaginationParams } from '@/types';
 import { dataSource } from '@/config/database';
@@ -73,12 +73,22 @@ export class LeaveRequestRepositoryImpl implements LeaveRequestRepository {
     startDate: Date,
     endDate: Date
   ): Promise<LeaveRequest[]> {
-    return this.repository.find({
+    const existingRequests = await this.repository.find({
       where: {
         userId,
-        status: In([LeaveRequestStatus.PENDING, LeaveRequestStatus.APPROVED]),
-        startDate: Between(startDate, endDate),
+        status: In([
+          LeaveRequestStatus.PENDING,
+          LeaveRequestStatus.APPROVED,
+          LeaveRequestStatus.PENDING_APPROVAL,
+        ]),
       },
+    });
+
+    return existingRequests.filter((request) => {
+      const requestStart = new Date(request.startDate);
+      const requestEnd = new Date(request.endDate);
+
+      return requestStart <= endDate && requestEnd >= startDate;
     });
   }
 

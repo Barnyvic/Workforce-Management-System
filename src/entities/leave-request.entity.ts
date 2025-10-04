@@ -48,7 +48,13 @@ export class LeaveRequest {
   user!: User;
 
   get durationInDays(): number {
-    const timeDiff = this.endDate.getTime() - this.startDate.getTime();
+    const startDate =
+      this.startDate instanceof Date
+        ? this.startDate
+        : new Date(this.startDate);
+    const endDate =
+      this.endDate instanceof Date ? this.endDate : new Date(this.endDate);
+    const timeDiff = endDate.getTime() - startDate.getTime();
     return Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
   }
 

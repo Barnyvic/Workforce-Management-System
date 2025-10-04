@@ -2,7 +2,14 @@ import { UserRepository } from '@/interfaces/user-repository.interface';
 import { UserRepositoryImpl } from '@/repositories/user.repository';
 import { DepartmentRepository } from '@/interfaces/repository.interfaces';
 import { DepartmentRepositoryImpl } from '@/repositories/department.repository';
-import { PaginationParams, ApiResponse, UserRole, SafeUser } from '@/types';
+import {
+  PaginationParams,
+  ApiResponse,
+  UserRole,
+  SafeUser,
+  PaginatedResponse,
+  PaginationMetadata,
+} from '@/types';
 import {
   CreateUserDto,
   LoginDto,
@@ -10,22 +17,27 @@ import {
   UserService,
 } from '@/interfaces/user.interface';
 import { AuthServiceImpl } from '@/services/auth.service';
+import { CacheServiceImpl } from '@/services/cache.service';
 import { logger } from '@/services/logger.service';
+import { createPaginatedResponse } from '@/utils/pagination.util';
 
 export class UserServiceImpl implements UserService {
   private userRepository: UserRepository;
   private departmentRepository: DepartmentRepository;
   private authService: AuthServiceImpl;
+  private cacheService: CacheServiceImpl;
 
   constructor(
     userRepository?: UserRepository,
     departmentRepository?: DepartmentRepository,
-    authService?: AuthServiceImpl
+    authService?: AuthServiceImpl,
+    cacheService?: CacheServiceImpl
   ) {
     this.userRepository = userRepository || new UserRepositoryImpl();
     this.departmentRepository =
       departmentRepository || new DepartmentRepositoryImpl();
     this.authService = authService || new AuthServiceImpl();
+    this.cacheService = cacheService || new CacheServiceImpl();
   }
 
   async createUser(data: CreateUserDto): Promise<ApiResponse<SafeUser>> {
@@ -178,7 +190,7 @@ export class UserServiceImpl implements UserService {
   async getUsersByDepartment(
     departmentId: number,
     pagination: PaginationParams
-  ): Promise<ApiResponse<SafeUser[]>> {
+  ): Promise<import('@/types').PaginatedResponse<SafeUser>> {
     logger.info('Getting users by department', {
       departmentId,
       pagination,
@@ -191,6 +203,15 @@ export class UserServiceImpl implements UserService {
           success: false,
           error: 'Department not found',
           timestamp: new Date().toISOString(),
+          data: [],
+          pagination: {
+            total: 0,
+            page: pagination.page,
+            limit: pagination.limit,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
         };
       }
 
@@ -203,11 +224,11 @@ export class UserServiceImpl implements UserService {
         total: result.total,
         returned: result.users.length,
       });
-      return {
-        success: true,
-        data: result.users.map((user) => user.toSafeObject()),
-        timestamp: new Date().toISOString(),
-      };
+      return createPaginatedResponse(
+        result.users.map((user) => user.toSafeObject()),
+        pagination,
+        result.total
+      );
     } catch (error) {
       logger.error('Failed to get users by department', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -220,25 +241,104 @@ export class UserServiceImpl implements UserService {
             ? error.message
             : 'Failed to get users by department',
         timestamp: new Date().toISOString(),
+        data: [],
+        pagination: {
+          total: 0,
+          page: pagination.page,
+          limit: pagination.limit,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
       };
     }
   }
 
-  async getAllUsers(): Promise<ApiResponse<SafeUser[]>> {
-    logger.info('Getting all users');
+  async getAllUsers(
+    pagination?: PaginationParams
+  ): Promise<ApiResponse<SafeUser[]> | PaginatedResponse<SafeUser>> {
+    logger.info('Getting all users', { pagination });
+
+    // Generate cache key
+    const cacheKey = pagination
+      ? `users:all:page:${pagination.page}:limit:${pagination.limit}`
+      : 'users:all';
+
     try {
-      const users = await this.userRepository.findAll();
-      logger.info('All users retrieved successfully', {
-        count: users.length,
-      });
-      return {
-        success: true,
-        data: users.map((user) => user.toSafeObject()),
-        timestamp: new Date().toISOString(),
-      };
+      // Check cache first
+      const cached = await this.cacheService.get<string>(cacheKey);
+      if (cached) {
+        logger.info('Users retrieved from cache', { cacheKey });
+        return JSON.parse(cached);
+      }
+
+      if (pagination) {
+        const { page, limit } = pagination;
+        const skip = (page - 1) * limit;
+
+        // Use findAll and count for pagination
+        const [users, total] = await Promise.all([
+          this.userRepository.findAll({
+            skip,
+            take: limit,
+            order: { createdAt: 'DESC' },
+          }),
+          this.userRepository.count(),
+        ]);
+
+        const safeUsers = users.map((user) => user.toSafeObject());
+
+        const totalPages = Math.ceil(total / limit);
+        const paginationMetadata: PaginationMetadata = {
+          total,
+          page,
+          limit,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        };
+
+        const result: PaginatedResponse<SafeUser> = {
+          success: true,
+          data: safeUsers,
+          pagination: paginationMetadata,
+          timestamp: new Date().toISOString(),
+        };
+
+        // Cache the result for 5 minutes
+        await this.cacheService.set(cacheKey, JSON.stringify(result), 300);
+
+        logger.info('All users retrieved successfully with pagination', {
+          count: users.length,
+          total,
+          pagination: paginationMetadata,
+        });
+
+        return result;
+      } else {
+        const users = await this.userRepository.findAll({
+          order: { createdAt: 'DESC' },
+        });
+
+        const result: ApiResponse<SafeUser[]> = {
+          success: true,
+          data: users.map((user) => user.toSafeObject()),
+          timestamp: new Date().toISOString(),
+        };
+
+        // Cache the result for 5 minutes
+        await this.cacheService.set(cacheKey, JSON.stringify(result), 300);
+
+        logger.info('All users retrieved successfully', {
+          count: users.length,
+        });
+
+        return result;
+      }
     } catch (error) {
       logger.error('Failed to get all users', {
         error: error instanceof Error ? error.message : 'Unknown error',
+        pagination,
       });
       return {
         success: false,
@@ -296,14 +396,19 @@ export class UserServiceImpl implements UserService {
         }
       }
 
-      const updateData: any = { ...data };
+      const updateData = {
+        ...data,
+      } as Partial<CreateUserDto> & { password?: string };
       if (data.password) {
         updateData.password = await this.authService.hashPassword(
           data.password
         );
       }
 
-      const updatedUser = await this.userRepository.update(id, updateData);
+      const updatedUser = await this.userRepository.update(
+        id,
+        updateData as Partial<import('@/entities/user.entity').User>
+      );
       logger.info('User updated successfully', {
         userId: id,
         name: updatedUser.name,
@@ -429,7 +534,11 @@ export class UserServiceImpl implements UserService {
     }
   }
 
-  async validateToken(token: string): Promise<ApiResponse<any>> {
+  async validateToken(
+    token: string
+  ): Promise<
+    ApiResponse<{ userId: number; role: string; email: string; name: string }>
+  > {
     try {
       const decoded = this.authService.verifyToken(token);
       const user = await this.userRepository.findById(decoded.userId);

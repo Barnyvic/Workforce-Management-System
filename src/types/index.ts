@@ -78,8 +78,27 @@ export interface SafeUser {
   departmentId: number | null;
   createdAt: Date;
   updatedAt: Date;
-  leaveRequests?: any[]; 
-  department?: any;
+  leaveRequests?: SafeLeaveRequest[];
+  department?: SafeDepartment;
+}
+
+export interface SafeLeaveRequest {
+  id: number;
+  userId: number;
+  startDate: Date;
+  endDate: Date;
+  status: LeaveRequestStatus;
+  createdAt: Date;
+  updatedAt: Date;
+  durationInDays: number;
+}
+
+export interface SafeDepartment {
+  id: number;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+  users?: SafeUser[];
 }
 
 export enum LeaveRequestStatus {

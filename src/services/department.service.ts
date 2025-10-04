@@ -5,20 +5,27 @@ import {
   PaginationParams,
   ApiResponse,
   PaginatedResponse,
-  PaginationMetadata,
+  SafeDepartment,
 } from '@/types';
 import {
   CreateDepartmentDto,
   DepartmentService,
 } from '@/interfaces/department.interface';
+import { CacheServiceImpl } from '@/services/cache.service';
 import { logger } from '@/services/logger.service';
+import { createPaginatedResponse } from '@/utils/pagination.util';
 
 export class DepartmentServiceImpl implements DepartmentService {
   private departmentRepository: DepartmentRepository;
+  private cacheService: CacheServiceImpl;
 
-  constructor(departmentRepository?: DepartmentRepository) {
+  constructor(
+    departmentRepository?: DepartmentRepository,
+    cacheService?: CacheServiceImpl
+  ) {
     this.departmentRepository =
       departmentRepository || new DepartmentRepositoryImpl();
+    this.cacheService = cacheService || new CacheServiceImpl();
   }
 
   async createDepartment(
@@ -106,7 +113,9 @@ export class DepartmentServiceImpl implements DepartmentService {
     }
   }
 
-  async getDepartmentWithUsers(id: number): Promise<ApiResponse<Department>> {
+  async getDepartmentWithUsers(
+    id: number
+  ): Promise<ApiResponse<SafeDepartment>> {
     logger.info('Getting department with users', { departmentId: id });
     try {
       const department = await this.departmentRepository.findWithUsers(id);
@@ -119,9 +128,11 @@ export class DepartmentServiceImpl implements DepartmentService {
         };
       }
 
-      // Create safe department object without user passwords
-      const safeDepartment = {
-        ...department,
+      const safeDepartment: SafeDepartment = {
+        id: department.id,
+        name: department.name,
+        createdAt: department.createdAt,
+        updatedAt: department.updatedAt,
         users: department.users?.map((user) => user.toSafeObject()) || [],
       };
 
@@ -130,9 +141,10 @@ export class DepartmentServiceImpl implements DepartmentService {
         name: department.name,
         userCount: department.users?.length || 0,
       });
+
       return {
         success: true,
-        data: safeDepartment as Department,
+        data: safeDepartment,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -154,7 +166,7 @@ export class DepartmentServiceImpl implements DepartmentService {
   async getUsersByDepartment(
     departmentId: number,
     pagination: PaginationParams
-  ): Promise<ApiResponse<Department[]>> {
+  ): Promise<PaginatedResponse<SafeDepartment>> {
     logger.info('Getting users by department', {
       departmentId,
       pagination,
@@ -167,6 +179,15 @@ export class DepartmentServiceImpl implements DepartmentService {
           success: false,
           error: 'Department not found',
           timestamp: new Date().toISOString(),
+          data: [],
+          pagination: {
+            total: 0,
+            page: pagination.page,
+            limit: pagination.limit,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
         };
       }
 
@@ -175,22 +196,22 @@ export class DepartmentServiceImpl implements DepartmentService {
         pagination
       );
 
-      // Create safe departments with sanitized user data
-      const safeDepartments = result.departments.map((dept) => ({
-        ...dept,
-        users: dept.users?.map((user) => user.toSafeObject()) || [],
-      }));
+      const safeDepartments: SafeDepartment[] = result.departments.map(
+        (dept) => ({
+          id: dept.id,
+          name: dept.name,
+          createdAt: dept.createdAt,
+          updatedAt: dept.updatedAt,
+          users: dept.users?.map((user) => user.toSafeObject()) || [],
+        })
+      );
 
       logger.info('Users by department retrieved successfully', {
         departmentId,
         total: result.total,
         returned: result.departments.length,
       });
-      return {
-        success: true,
-        data: safeDepartments as Department[],
-        timestamp: new Date().toISOString(),
-      };
+      return createPaginatedResponse(safeDepartments, pagination, result.total);
     } catch (error) {
       logger.error('Failed to get users by department', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -203,6 +224,15 @@ export class DepartmentServiceImpl implements DepartmentService {
             ? error.message
             : 'Failed to get users by department',
         timestamp: new Date().toISOString(),
+        data: [],
+        pagination: {
+          total: 0,
+          page: pagination.page,
+          limit: pagination.limit,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
       };
     }
   }
@@ -211,12 +241,24 @@ export class DepartmentServiceImpl implements DepartmentService {
     pagination?: PaginationParams
   ): Promise<ApiResponse<Department[]> | PaginatedResponse<Department>> {
     logger.info('Getting all departments', { pagination });
+
+    // Generate cache key
+    const cacheKey = pagination
+      ? `departments:all:page:${pagination.page}:limit:${pagination.limit}`
+      : 'departments:all';
+
     try {
+      // Check cache first
+      const cached = await this.cacheService.get<string>(cacheKey);
+      if (cached) {
+        logger.info('Departments retrieved from cache', { cacheKey });
+        return JSON.parse(cached);
+      }
+
       if (pagination) {
         const { page, limit } = pagination;
         const skip = (page - 1) * limit;
 
-        // Use findAndCount for pagination
         const [departments, total] = await Promise.all([
           this.departmentRepository.findAll({
             skip,
@@ -226,42 +268,37 @@ export class DepartmentServiceImpl implements DepartmentService {
           this.departmentRepository.count(),
         ]);
 
-        const totalPages = Math.ceil(total / limit);
-        const paginationMetadata: PaginationMetadata = {
-          total,
-          page,
-          limit,
-          totalPages,
-          hasNextPage: page < totalPages,
-          hasPreviousPage: page > 1,
-        };
+        const result = createPaginatedResponse(departments, pagination, total);
+
+        // Cache the result for 5 minutes
+        await this.cacheService.set(cacheKey, JSON.stringify(result), 300);
 
         logger.info('All departments retrieved successfully with pagination', {
           count: departments.length,
           total,
-          pagination: paginationMetadata,
+          pagination,
         });
 
-        return {
-          success: true,
-          data: departments,
-          pagination: paginationMetadata,
-          timestamp: new Date().toISOString(),
-        };
+        return result;
       } else {
         const departments = await this.departmentRepository.findAll({
           order: { createdAt: 'DESC' },
         });
 
-        logger.info('All departments retrieved successfully', {
-          count: departments.length,
-        });
-
-        return {
+        const result = {
           success: true,
           data: departments,
           timestamp: new Date().toISOString(),
         };
+
+        // Cache the result for 5 minutes
+        await this.cacheService.set(cacheKey, JSON.stringify(result), 300);
+
+        logger.info('All departments retrieved successfully', {
+          count: departments.length,
+        });
+
+        return result;
       }
     } catch (error) {
       logger.error('Failed to get all departments', {

@@ -1,12 +1,15 @@
 import { Request, Response } from 'express';
 import { UserServiceImpl } from '@/services/user.service';
+import { CacheServiceImpl } from '@/services/cache.service';
 import { AuthenticatedRequest } from '@/middleware/auth.middleware';
 
 export class UserController {
   private userService: UserServiceImpl;
 
-  constructor(userService?: UserServiceImpl) {
-    this.userService = userService || new UserServiceImpl();
+  constructor(cacheService?: CacheServiceImpl, userService?: UserServiceImpl) {
+    this.userService =
+      userService ||
+      new UserServiceImpl(undefined, undefined, undefined, cacheService);
   }
 
   createUser = async (req: Request, res: Response): Promise<void> => {
@@ -81,8 +84,16 @@ export class UserController {
     res.status(statusCode).json(result);
   };
 
-  getAllUsers = async (_req: Request, res: Response): Promise<void> => {
-    const result = await this.userService.getAllUsers();
+  getAllUsers = async (req: Request, res: Response): Promise<void> => {
+    const pagination =
+      req.query['page'] && req.query['limit']
+        ? {
+            page: parseInt(req.query['page'] as string),
+            limit: parseInt(req.query['limit'] as string),
+          }
+        : undefined;
+
+    const result = await this.userService.getAllUsers(pagination);
     res.status(200).json(result);
   };
 

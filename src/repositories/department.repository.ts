@@ -25,7 +25,24 @@ export class DepartmentRepositoryImpl implements DepartmentRepository {
     return this.repository.find(options);
   }
 
-  async findWithUsers(id: number): Promise<Department | null> {
+  async findWithUsers(
+    id: number,
+    pagination?: PaginationParams
+  ): Promise<Department | null> {
+    if (pagination) {
+      const { page, limit } = pagination;
+      const skip = (page - 1) * limit;
+
+      const departments = await this.repository.find({
+        where: { id },
+        relations: ['users'],
+        skip,
+        take: limit,
+      });
+
+      return departments[0] || null;
+    }
+
     return this.repository.findOne({
       where: { id },
       relations: ['users'],

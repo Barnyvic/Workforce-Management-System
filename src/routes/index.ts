@@ -8,11 +8,7 @@ import { CacheServiceImpl } from '@/services/cache.service';
 import { QueueServiceImpl } from '@/services/queue.service';
 import { LeaveRequestServiceImpl } from '@/services/leave-request.service';
 import { validateRequest, schemas } from '@/middleware/validation.middleware';
-import {
-  authenticateToken,
-  requireAdmin,
-  requireManagerOrAdmin,
-} from '@/middleware/auth.middleware';
+import { authenticateToken, requireAdmin } from '@/middleware/auth.middleware';
 
 export function createRoutes(
   cacheService?: CacheServiceImpl,
@@ -20,12 +16,17 @@ export function createRoutes(
 ): Router {
   const router = Router();
 
-  const departmentController = new DepartmentController();
-  const userController = new UserController();
+  const departmentController = new DepartmentController(cacheService);
+  const userController = new UserController(cacheService);
 
-  // Create leave request service with shared queue service
+  // Create leave request service with shared queue and cache services
   const leaveRequestService = queueService
-    ? new LeaveRequestServiceImpl(undefined, undefined, queueService)
+    ? new LeaveRequestServiceImpl(
+        undefined,
+        undefined,
+        queueService,
+        cacheService
+      )
     : undefined;
   const leaveRequestController = new LeaveRequestController(
     leaveRequestService
@@ -72,7 +73,12 @@ export function createRoutes(
     userController.getUsersByDepartment
   );
 
-  router.get('/users', authenticateToken, userController.getAllUsers);
+  router.get(
+    '/users',
+    validateRequest({ query: schemas.paginationQuery }),
+    authenticateToken,
+    userController.getAllUsers
+  );
 
   router.put(
     '/users/:id',
@@ -191,20 +197,24 @@ export function createRoutes(
       params: schemas.idParam,
       body: schemas.updateLeaveRequestStatus,
     }),
-    requireManagerOrAdmin,
+    authenticateToken,
+    requireAdmin,
     leaveRequestController.updateLeaveRequestStatus
   );
 
   router.get(
     '/leave-requests',
+    validateRequest({ query: schemas.paginationQuery }),
     authenticateToken,
+    requireAdmin,
     leaveRequestController.getAllLeaveRequests
   );
 
   router.delete(
     '/leave-requests/:id',
     validateRequest({ params: schemas.idParam }),
-    requireManagerOrAdmin,
+    authenticateToken,
+    requireAdmin,
     leaveRequestController.deleteLeaveRequest
   );
 

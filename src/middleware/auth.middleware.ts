@@ -33,7 +33,7 @@ export const authenticateToken = async (
     const userService = new UserServiceImpl();
     const result = await userService.validateToken(token);
 
-    if (!result.success) {
+    if (!result.success || !result.data) {
       res.status(401).json({
         success: false,
         error: 'Invalid token',
@@ -42,7 +42,12 @@ export const authenticateToken = async (
       return;
     }
 
-    req.user = result.data;
+    req.user = {
+      userId: result.data.userId,
+      role: result.data.role as UserRole,
+      email: result.data.email,
+      name: result.data.name,
+    };
     next();
   } catch (error) {
     logger.error('Authentication error:', error);
