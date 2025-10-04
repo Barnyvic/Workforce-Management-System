@@ -2,18 +2,40 @@ import { LeaveRequestServiceImpl } from '@/services/leave-request.service';
 import { LeaveRequestRepositoryImpl } from '@/repositories/leave-request.repository';
 import { UserRepositoryImpl } from '@/repositories/user.repository';
 import { DepartmentRepositoryImpl } from '@/repositories/department.repository';
+import { QueueServiceImpl } from '@/services/queue.service';
+import { CacheServiceImpl } from '@/services/cache.service';
 import { LeaveRequestStatus, QueueMessage, UserRole } from '@/types';
 import {
   testDataSource,
   setupTestDatabase,
   teardownTestDatabase,
+  clearTestDatabase,
 } from '../setup';
+
+// Mock the queue service for tests
+class MockQueueService extends QueueServiceImpl {
+  constructor() {
+    super(new CacheServiceImpl());
+  }
+
+  async publishMessage(message: QueueMessage): Promise<void> {
+    // Mock implementation - just log the message
+    console.log('Mock queue message published:', message);
+  }
+
+  async processLeaveRequest(message: QueueMessage): Promise<void> {
+    // Mock implementation for testing
+    console.log('Mock processing leave request:', message);
+  }
+}
 
 describe('LeaveRequestService', () => {
   let leaveRequestService: LeaveRequestServiceImpl;
   let leaveRequestRepository: LeaveRequestRepositoryImpl;
   let userRepository: UserRepositoryImpl;
   let departmentRepository: DepartmentRepositoryImpl;
+  let queueService: MockQueueService;
+  let cacheService: CacheServiceImpl;
 
   beforeAll(async () => {
     await setupTestDatabase();
@@ -24,14 +46,18 @@ describe('LeaveRequestService', () => {
   });
 
   beforeEach(async () => {
-    await testDataSource.synchronize();
+    await clearTestDatabase();
 
-    leaveRequestRepository = new LeaveRequestRepositoryImpl();
-    userRepository = new UserRepositoryImpl();
-    departmentRepository = new DepartmentRepositoryImpl();
+    leaveRequestRepository = new LeaveRequestRepositoryImpl(testDataSource);
+    userRepository = new UserRepositoryImpl(testDataSource);
+    departmentRepository = new DepartmentRepositoryImpl(testDataSource);
+    cacheService = new CacheServiceImpl();
+    queueService = new MockQueueService();
     leaveRequestService = new LeaveRequestServiceImpl(
       leaveRequestRepository,
-      userRepository
+      userRepository,
+      queueService,
+      cacheService
     );
   });
 

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { UserRole } from '@/types';
-import { UserServiceImpl } from '@/services/user.service';
+import { AuthServiceImpl } from '@/services/auth.service';
 import { logger } from '@/services/logger.service';
 
 export interface AuthenticatedRequest extends Request {
@@ -30,23 +30,16 @@ export const authenticateToken = async (
       return;
     }
 
-    const userService = new UserServiceImpl();
-    const result = await userService.validateToken(token);
+    // Verify JWT token directly without database lookup
+    const authService = new AuthServiceImpl();
+    const decoded = authService.verifyToken(token);
 
-    if (!result.success || !result.data) {
-      res.status(401).json({
-        success: false,
-        error: 'Invalid token',
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
+    // Extract user information from JWT payload
     req.user = {
-      userId: result.data.userId,
-      role: result.data.role as UserRole,
-      email: result.data.email,
-      name: result.data.name,
+      userId: decoded.userId,
+      role: decoded.role as UserRole,
+      email: decoded.email || '',
+      name: decoded.name || '',
     };
     next();
   } catch (error) {

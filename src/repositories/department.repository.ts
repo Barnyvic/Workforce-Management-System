@@ -1,4 +1,4 @@
-import { Repository, FindManyOptions } from 'typeorm';
+import { Repository, FindManyOptions, DataSource } from 'typeorm';
 import { Department } from '@/entities/department.entity';
 import { PaginationParams } from '@/types';
 import { dataSource } from '@/config/database';
@@ -7,8 +7,9 @@ import { DepartmentRepository } from '@/interfaces/repository.interfaces';
 export class DepartmentRepositoryImpl implements DepartmentRepository {
   private repository: Repository<Department>;
 
-  constructor() {
-    this.repository = dataSource.getRepository(Department);
+  constructor(customDataSource?: DataSource) {
+    const ds = customDataSource || dataSource;
+    this.repository = ds.getRepository(Department);
   }
 
   async findById(id: number): Promise<Department | null> {

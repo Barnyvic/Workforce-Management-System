@@ -1,12 +1,12 @@
 import { Request, Response } from 'express';
 import { DepartmentServiceImpl } from '@/services/department.service';
-import { CacheServiceImpl } from '@/services/cache.service';
+import { CacheService } from '@/interfaces/cache.interface';
 
 export class DepartmentController {
   private departmentService: DepartmentServiceImpl;
 
   constructor(
-    cacheService?: CacheServiceImpl,
+    cacheService?: CacheService,
     departmentService?: DepartmentServiceImpl
   ) {
     this.departmentService =

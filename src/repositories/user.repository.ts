@@ -1,4 +1,4 @@
-import { Repository, FindManyOptions } from 'typeorm';
+import { Repository, FindManyOptions, DataSource } from 'typeorm';
 import { User } from '@/entities/user.entity';
 import { PaginationParams } from '@/types';
 import { dataSource } from '@/config/database';
@@ -7,8 +7,9 @@ import { UserRepository } from '@/interfaces/user-repository.interface';
 export class UserRepositoryImpl implements UserRepository {
   private repository: Repository<User>;
 
-  constructor() {
-    this.repository = dataSource.getRepository(User);
+  constructor(customDataSource?: DataSource) {
+    const ds = customDataSource || dataSource;
+    this.repository = ds.getRepository(User);
   }
 
   async findById(id: number): Promise<User | null> {

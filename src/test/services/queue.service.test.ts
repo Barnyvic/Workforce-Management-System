@@ -21,8 +21,7 @@ describe('QueueService', () => {
       connect: jest.fn(),
     } as any;
 
-    queueService = new QueueServiceImpl();
-    (queueService as any).cacheService = mockCacheService;
+    queueService = new QueueServiceImpl(mockCacheService);
   });
 
   describe('connect', () => {

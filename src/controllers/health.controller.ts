@@ -1,19 +1,17 @@
 import { Request, Response } from 'express';
 import { databaseService } from '@/config/database';
 import { ConfigService } from '@/config/config.service';
+import { CacheService } from '@/interfaces/cache.interface';
 import { CacheServiceImpl } from '@/services/cache.service';
 import { QueueServiceImpl } from '@/services/queue.service';
 import { ApiResponse } from '@/types';
 
 export class HealthController {
-  private cacheService: CacheServiceImpl;
+  private cacheService: CacheService;
   private queueService: QueueServiceImpl;
   private config = ConfigService.getInstance();
 
-  constructor(
-    cacheService?: CacheServiceImpl,
-    queueService?: QueueServiceImpl
-  ) {
+  constructor(cacheService?: CacheService, queueService?: QueueServiceImpl) {
     this.cacheService = cacheService || new CacheServiceImpl();
     this.queueService = queueService || new QueueServiceImpl();
   }

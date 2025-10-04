@@ -13,6 +13,7 @@ import {
 } from '@/types';
 import { createPaginatedResponse } from '@/utils/pagination.util';
 import { QueueServiceImpl } from '@/services/queue.service';
+import { CacheService } from '@/interfaces/cache.interface';
 import { CacheServiceImpl } from '@/services/cache.service';
 import {
   CreateLeaveRequestDto,
@@ -24,13 +25,13 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
   private leaveRequestRepository: LeaveRequestRepository;
   private userRepository: UserRepository;
   private queueService: QueueServiceImpl;
-  private cacheService: CacheServiceImpl;
+  private cacheService: CacheService;
 
   constructor(
     leaveRequestRepository?: LeaveRequestRepository,
     userRepository?: UserRepository,
     queueService?: QueueServiceImpl,
-    cacheService?: CacheServiceImpl
+    cacheService?: CacheService
   ) {
     this.leaveRequestRepository =
       leaveRequestRepository || new LeaveRequestRepositoryImpl();

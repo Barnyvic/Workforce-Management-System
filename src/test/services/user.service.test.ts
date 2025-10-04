@@ -2,11 +2,13 @@ import { UserServiceImpl } from '@/services/user.service';
 import { UserRepositoryImpl } from '@/repositories/user.repository';
 import { DepartmentRepositoryImpl } from '@/repositories/department.repository';
 import { AuthServiceImpl } from '@/services/auth.service';
+import { CacheServiceImpl } from '@/services/cache.service';
 import { UserRole } from '@/types';
 import {
   testDataSource,
   setupTestDatabase,
   teardownTestDatabase,
+  clearTestDatabase,
 } from '../setup';
 
 describe('UserService', () => {
@@ -14,6 +16,7 @@ describe('UserService', () => {
   let userRepository: UserRepositoryImpl;
   let departmentRepository: DepartmentRepositoryImpl;
   let authService: AuthServiceImpl;
+  let cacheService: CacheServiceImpl;
 
   beforeAll(async () => {
     await setupTestDatabase();
@@ -24,15 +27,17 @@ describe('UserService', () => {
   });
 
   beforeEach(async () => {
-    await testDataSource.synchronize();
+    await clearTestDatabase();
 
-    userRepository = new UserRepositoryImpl();
-    departmentRepository = new DepartmentRepositoryImpl();
+    userRepository = new UserRepositoryImpl(testDataSource);
+    departmentRepository = new DepartmentRepositoryImpl(testDataSource);
     authService = new AuthServiceImpl();
+    cacheService = new CacheServiceImpl();
     userService = new UserServiceImpl(
       userRepository,
       departmentRepository,
-      authService
+      authService,
+      cacheService
     );
   });
 

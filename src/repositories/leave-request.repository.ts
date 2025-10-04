@@ -1,4 +1,4 @@
-import { Repository, FindManyOptions, In } from 'typeorm';
+import { Repository, FindManyOptions, In, DataSource } from 'typeorm';
 import { LeaveRequest } from '@/entities/leave-request.entity';
 import { LeaveRequestStatus, PaginationParams } from '@/types';
 import { dataSource } from '@/config/database';
@@ -7,8 +7,9 @@ import { LeaveRequestRepository } from '@/interfaces/repository.interfaces';
 export class LeaveRequestRepositoryImpl implements LeaveRequestRepository {
   private repository: Repository<LeaveRequest>;
 
-  constructor() {
-    this.repository = dataSource.getRepository(LeaveRequest);
+  constructor(customDataSource?: DataSource) {
+    const ds = customDataSource || dataSource;
+    this.repository = ds.getRepository(LeaveRequest);
   }
 
   async findById(id: number): Promise<LeaveRequest | null> {

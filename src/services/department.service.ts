@@ -11,17 +11,18 @@ import {
   CreateDepartmentDto,
   DepartmentService,
 } from '@/interfaces/department.interface';
+import { CacheService } from '@/interfaces/cache.interface';
 import { CacheServiceImpl } from '@/services/cache.service';
 import { logger } from '@/services/logger.service';
 import { createPaginatedResponse } from '@/utils/pagination.util';
 
 export class DepartmentServiceImpl implements DepartmentService {
   private departmentRepository: DepartmentRepository;
-  private cacheService: CacheServiceImpl;
+  private cacheService: CacheService;
 
   constructor(
     departmentRepository?: DepartmentRepository,
-    cacheService?: CacheServiceImpl
+    cacheService?: CacheService
   ) {
     this.departmentRepository =
       departmentRepository || new DepartmentRepositoryImpl();

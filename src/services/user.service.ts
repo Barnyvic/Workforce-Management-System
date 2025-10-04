@@ -17,6 +17,7 @@ import {
   UserService,
 } from '@/interfaces/user.interface';
 import { AuthServiceImpl } from '@/services/auth.service';
+import { CacheService } from '@/interfaces/cache.interface';
 import { CacheServiceImpl } from '@/services/cache.service';
 import { logger } from '@/services/logger.service';
 import { createPaginatedResponse } from '@/utils/pagination.util';
@@ -25,13 +26,13 @@ export class UserServiceImpl implements UserService {
   private userRepository: UserRepository;
   private departmentRepository: DepartmentRepository;
   private authService: AuthServiceImpl;
-  private cacheService: CacheServiceImpl;
+  private cacheService: CacheService;
 
   constructor(
     userRepository?: UserRepository,
     departmentRepository?: DepartmentRepository,
     authService?: AuthServiceImpl,
-    cacheService?: CacheServiceImpl
+    cacheService?: CacheService
   ) {
     this.userRepository = userRepository || new UserRepositoryImpl();
     this.departmentRepository =
@@ -497,7 +498,12 @@ export class UserServiceImpl implements UserService {
         };
       }
 
-      const token = this.authService.generateToken(user.id, user.role);
+      const token = this.authService.generateToken(
+        user.id,
+        user.role,
+        user.email,
+        user.name
+      );
       logger.info('User logged in successfully', {
         userId: user.id,
         email: user.email,

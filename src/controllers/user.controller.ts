@@ -1,12 +1,12 @@
 import { Request, Response } from 'express';
 import { UserServiceImpl } from '@/services/user.service';
-import { CacheServiceImpl } from '@/services/cache.service';
+import { CacheService } from '@/interfaces/cache.interface';
 import { AuthenticatedRequest } from '@/middleware/auth.middleware';
 
 export class UserController {
   private userService: UserServiceImpl;
 
-  constructor(cacheService?: CacheServiceImpl, userService?: UserServiceImpl) {
+  constructor(cacheService?: CacheService, userService?: UserServiceImpl) {
     this.userService =
       userService ||
       new UserServiceImpl(undefined, undefined, undefined, cacheService);

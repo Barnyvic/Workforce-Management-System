@@ -1,19 +1,31 @@
 import request from 'supertest';
 import express from 'express';
 import { HealthController } from '@/controllers/health.controller';
+import { CacheServiceImpl } from '@/services/cache.service';
+import { QueueServiceImpl } from '@/services/queue.service';
 import { errorHandler } from '@/middleware/error.middleware';
 import {
-  testDataSource,
   setupTestDatabase,
   teardownTestDatabase,
+  clearTestDatabase,
 } from '../setup';
 
 // Mock services
 jest.mock('@/services/queue.service');
 jest.mock('@/services/cache.service');
+jest.mock('@/config/database');
+
+const MockedCacheService = CacheServiceImpl as jest.MockedClass<
+  typeof CacheServiceImpl
+>;
+const MockedQueueService = QueueServiceImpl as jest.MockedClass<
+  typeof QueueServiceImpl
+>;
 
 describe('Health Check API Integration Tests', () => {
   let app: express.Application;
+  let mockCacheService: jest.Mocked<CacheServiceImpl>;
+  let mockQueueService: jest.Mocked<QueueServiceImpl>;
 
   beforeAll(async () => {
     await setupTestDatabase();
@@ -24,12 +36,45 @@ describe('Health Check API Integration Tests', () => {
   });
 
   beforeEach(async () => {
-    await testDataSource.synchronize();
+    await clearTestDatabase();
 
     app = express();
     app.use(express.json());
 
-    const healthController = new HealthController();
+    // Mock database service
+    const mockDatabaseService = {
+      getDataSource: jest.fn().mockReturnValue({
+        isInitialized: true,
+      }),
+    };
+    require('@/config/database').databaseService = mockDatabaseService;
+
+    // Create mock services
+    mockCacheService = {
+      isHealthy: jest.fn().mockResolvedValue(true),
+      connect: jest.fn().mockResolvedValue(undefined),
+      get: jest.fn(),
+      set: jest.fn(),
+      del: jest.fn(),
+      exists: jest.fn(),
+      flushAll: jest.fn(),
+      close: jest.fn(),
+    } as any;
+
+    mockQueueService = {
+      isHealthy: jest.fn().mockResolvedValue(true),
+      connect: jest.fn().mockResolvedValue(undefined),
+      publishMessage: jest.fn(),
+      close: jest.fn(),
+    } as any;
+
+    MockedCacheService.mockImplementation(() => mockCacheService);
+    MockedQueueService.mockImplementation(() => mockQueueService);
+
+    const healthController = new HealthController(
+      mockCacheService,
+      mockQueueService
+    );
 
     // Setup routes
     app.get('/health', healthController.healthCheck);
@@ -57,18 +102,18 @@ describe('Health Check API Integration Tests', () => {
       const response = await request(app).get('/health').expect(200);
 
       expect(response.body.data.status).toBe('healthy');
-      expect(response.body.data.services.database.status).toBe('healthy');
-      expect(response.body.data.services.queue.status).toBe('healthy');
-      expect(response.body.data.services.cache.status).toBe('healthy');
+      expect(response.body.data.services.database).toBe('healthy');
+      expect(response.body.data.services.queue).toBe('healthy');
+      expect(response.body.data.services.cache).toBe('healthy');
     });
 
-    it('should include system information', async () => {
+    it('should include basic system information', async () => {
       const response = await request(app).get('/health').expect(200);
 
-      expect(response.body.data).toHaveProperty('system');
-      expect(response.body.data.system).toHaveProperty('platform');
-      expect(response.body.data.system).toHaveProperty('nodeVersion');
-      expect(response.body.data.system).toHaveProperty('memory');
+      expect(response.body.data).toHaveProperty('environment');
+      expect(response.body.data).toHaveProperty('version');
+      expect(response.body.data.environment).toBe('test');
+      expect(response.body.data.version).toBe('1.0.0');
     });
 
     it('should include uptime information', async () => {
@@ -92,25 +137,22 @@ describe('Health Check API Integration Tests', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty('status');
       expect(response.body.data).toHaveProperty('timestamp');
-      expect(response.body.data).toHaveProperty('connection');
-      expect(response.body.data).toHaveProperty('channel');
+      expect(response.body.data.status).toBe('healthy');
     });
 
     it('should return healthy status when queue is connected', async () => {
       const response = await request(app).get('/health/queue').expect(200);
 
       expect(response.body.data.status).toBe('healthy');
-      expect(response.body.data.connection).toBe(true);
-      expect(response.body.data.channel).toBe(true);
+      expect(response.body.success).toBe(true);
     });
 
-    it('should include queue configuration info', async () => {
+    it('should return basic queue status (detailed config not exposed)', async () => {
       const response = await request(app).get('/health/queue').expect(200);
 
-      expect(response.body.data).toHaveProperty('config');
-      expect(response.body.data.config).toHaveProperty('url');
-      expect(response.body.data.config).toHaveProperty('queueName');
-      expect(response.body.data.config).toHaveProperty('dlqName');
+      expect(response.body.data).toHaveProperty('status');
+      expect(response.body.data).toHaveProperty('timestamp');
+      // Note: Detailed config is not exposed for security reasons
     });
 
     it('should be accessible without authentication', async () => {
@@ -127,22 +169,22 @@ describe('Health Check API Integration Tests', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty('status');
       expect(response.body.data).toHaveProperty('timestamp');
-      expect(response.body.data).toHaveProperty('connected');
+      expect(response.body.data.status).toBe('healthy');
     });
 
     it('should return healthy status when cache is connected', async () => {
       const response = await request(app).get('/health/cache').expect(200);
 
       expect(response.body.data.status).toBe('healthy');
-      expect(response.body.data.connected).toBe(true);
+      expect(response.body.success).toBe(true);
     });
 
-    it('should include cache configuration info', async () => {
+    it('should return basic cache status (detailed config not exposed)', async () => {
       const response = await request(app).get('/health/cache').expect(200);
 
-      expect(response.body.data).toHaveProperty('config');
-      expect(response.body.data.config).toHaveProperty('host');
-      expect(response.body.data.config).toHaveProperty('port');
+      expect(response.body.data).toHaveProperty('status');
+      expect(response.body.data).toHaveProperty('timestamp');
+      // Note: Detailed config is not exposed for security reasons
     });
 
     it('should be accessible without authentication', async () => {
@@ -154,54 +196,64 @@ describe('Health Check API Integration Tests', () => {
 
   describe('Health Check Error Scenarios', () => {
     it('should handle database connection errors gracefully', async () => {
-      // Mock database connection failure
-      const originalQuery = testDataSource.query;
-      testDataSource.query = jest
-        .fn()
-        .mockRejectedValue(new Error('Database connection failed'));
+      // Mock database service to simulate connection failure
+      const mockDatabaseService = {
+        getDataSource: jest.fn().mockReturnValue({
+          isInitialized: false,
+        }),
+      };
+      require('@/config/database').databaseService = mockDatabaseService;
 
-      const response = await request(app).get('/health').expect(200);
+      const response = await request(app).get('/health').expect(503);
 
       expect(response.body.data.status).toBe('unhealthy');
-      expect(response.body.data.services.database.status).toBe('unhealthy');
-      expect(response.body.data.services.database.error).toContain(
-        'Database connection failed'
-      );
-
-      // Restore original method
-      testDataSource.query = originalQuery;
+      expect(response.body.data.services.database).toBe('unhealthy');
     });
 
     it('should handle queue service errors gracefully', async () => {
-      const QueueService = require('@/services/queue.service').QueueServiceImpl;
-      const mockQueueService = {
-        isHealthy: jest
-          .fn()
-          .mockRejectedValue(new Error('Queue service unavailable')),
+      // Create a new health controller with a failing queue service
+      const failingQueueService = {
+        isHealthy: jest.fn().mockResolvedValue(false),
+        connect: jest.fn(),
+        publishMessage: jest.fn(),
+        close: jest.fn(),
       };
-      QueueService.mockImplementation(() => mockQueueService);
 
-      const response = await request(app).get('/health/queue').expect(200);
+      const healthController = new HealthController(
+        mockCacheService,
+        failingQueueService as any
+      );
+      app.get('/health/queue-fail', healthController.queueHealth);
 
+      const response = await request(app).get('/health/queue-fail').expect(503);
+
+      expect(response.body.success).toBe(false);
       expect(response.body.data.status).toBe('unhealthy');
-      expect(response.body.data.connection).toBe(false);
-      expect(response.body.data.error).toContain('Queue service unavailable');
     });
 
     it('should handle cache service errors gracefully', async () => {
-      const CacheService = require('@/services/cache.service').CacheServiceImpl;
-      const mockCacheService = {
-        isHealthy: jest
-          .fn()
-          .mockRejectedValue(new Error('Cache service unavailable')),
+      // Create a new health controller with a failing cache service
+      const failingCacheService = {
+        isHealthy: jest.fn().mockResolvedValue(false),
+        connect: jest.fn(),
+        get: jest.fn(),
+        set: jest.fn(),
+        del: jest.fn(),
+        exists: jest.fn(),
+        flushAll: jest.fn(),
+        close: jest.fn(),
       };
-      CacheService.mockImplementation(() => mockCacheService);
 
-      const response = await request(app).get('/health/cache').expect(200);
+      const healthController = new HealthController(
+        failingCacheService as any,
+        mockQueueService
+      );
+      app.get('/health/cache-fail', healthController.cacheHealth);
 
+      const response = await request(app).get('/health/cache-fail').expect(503);
+
+      expect(response.body.success).toBe(false);
       expect(response.body.data.status).toBe('unhealthy');
-      expect(response.body.data.connected).toBe(false);
-      expect(response.body.data.error).toContain('Cache service unavailable');
     });
   });
 

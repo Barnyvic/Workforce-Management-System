@@ -6,7 +6,12 @@ import { UserRole } from '@/types';
 export interface AuthService {
   hashPassword(password: string): Promise<string>;
   comparePassword(password: string, hash: string): Promise<boolean>;
-  generateToken(userId: number, role: UserRole): string;
+  generateToken(
+    userId: number,
+    role: UserRole,
+    email?: string,
+    name?: string
+  ): string;
   verifyToken(token: string): any;
 }
 
@@ -22,9 +27,14 @@ export class AuthServiceImpl implements AuthService {
     return bcrypt.compare(password, hash);
   }
 
-  generateToken(userId: number, role: UserRole): string {
+  generateToken(
+    userId: number,
+    role: UserRole,
+    email?: string,
+    name?: string
+  ): string {
     const jwtConfig = this.config.getJwtConfig();
-    const payload = { userId, role };
+    const payload = { userId, role, email, name };
     return jwt.sign(payload, jwtConfig.secret, {
       expiresIn: jwtConfig.expiresIn as any,
     });

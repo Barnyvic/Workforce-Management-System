@@ -1,10 +1,7 @@
 import request from 'supertest';
 import express from 'express';
 import { UserController } from '@/controllers/user.controller';
-import { UserServiceImpl } from '@/services/user.service';
-import { UserRepositoryImpl } from '@/repositories/user.repository';
-import { DepartmentRepositoryImpl } from '@/repositories/department.repository';
-import { AuthServiceImpl } from '@/services/auth.service';
+import { ServiceContainer } from '@/container/service-container';
 
 import { errorHandler } from '@/middleware/error.middleware';
 import {
@@ -18,10 +15,12 @@ import {
   testDataSource,
   setupTestDatabase,
   teardownTestDatabase,
+  clearTestDatabase,
 } from '../setup';
 
 describe('Authentication Middleware Integration Tests', () => {
   let app: express.Application;
+  let serviceContainer: ServiceContainer;
   let adminToken: string;
   let employeeToken: string;
   let managerToken: string;
@@ -37,61 +36,77 @@ describe('Authentication Middleware Integration Tests', () => {
   });
 
   beforeEach(async () => {
-    await testDataSource.synchronize();
+    await clearTestDatabase();
+
+    // Reset and configure service container for tests
+    ServiceContainer.reset();
+    serviceContainer = ServiceContainer.getInstance(testDataSource);
 
     app = express();
     app.use(express.json());
 
-    const userRepository = new UserRepositoryImpl();
-    const departmentRepository = new DepartmentRepositoryImpl();
-    const authService = new AuthServiceImpl();
-    const userService = new UserServiceImpl(
-      userRepository,
-      departmentRepository,
-      authService
+    const userController = new UserController(
+      serviceContainer.cacheService,
+      serviceContainer.userService
     );
-    const userController = new UserController(userService);
 
     // Create test department
-    await departmentRepository.create({ name: 'Engineering' });
+    await serviceContainer.departmentRepository.create({ name: 'Engineering' });
 
     // Create test users
-    const adminUser = await userRepository.create({
+    const adminUser = await serviceContainer.userRepository.create({
       name: 'Admin User',
       email: 'admin@test.com',
-      password: await authService.hashPassword('admin123'),
+      password: await serviceContainer.authService.hashPassword('admin123'),
       role: UserRole.ADMIN,
       departmentId: 1,
     });
 
-    const employeeUser = await userRepository.create({
+    const employeeUser = await serviceContainer.userRepository.create({
       name: 'Employee User',
       email: 'employee@test.com',
-      password: await authService.hashPassword('employee123'),
+      password: await serviceContainer.authService.hashPassword('employee123'),
       role: UserRole.EMPLOYEE,
       departmentId: 1,
     });
 
-    const managerUser = await userRepository.create({
+    const managerUser = await serviceContainer.userRepository.create({
       name: 'Manager User',
       email: 'manager@test.com',
-      password: await authService.hashPassword('manager123'),
+      password: await serviceContainer.authService.hashPassword('manager123'),
       role: UserRole.MANAGER,
       departmentId: 1,
     });
 
     // Generate tokens
-    adminToken = authService.generateToken(adminUser.id, UserRole.ADMIN);
-    employeeToken = authService.generateToken(
-      employeeUser.id,
-      UserRole.EMPLOYEE
+    adminToken = serviceContainer.authService.generateToken(
+      adminUser.id,
+      UserRole.ADMIN,
+      adminUser.email,
+      adminUser.name
     );
-    managerToken = authService.generateToken(managerUser.id, UserRole.MANAGER);
+    employeeToken = serviceContainer.authService.generateToken(
+      employeeUser.id,
+      UserRole.EMPLOYEE,
+      employeeUser.email,
+      employeeUser.name
+    );
+    managerToken = serviceContainer.authService.generateToken(
+      managerUser.id,
+      UserRole.MANAGER,
+      managerUser.email,
+      managerUser.name
+    );
 
     // Generate expired token (simulate by creating with very short expiry)
     const originalExpiresIn = process.env['JWT_EXPIRES_IN'];
     process.env['JWT_EXPIRES_IN'] = '1'; // 1 second
-    expiredToken = authService.generateToken(adminUser.id, UserRole.ADMIN);
+    expiredToken = serviceContainer.authService.generateToken(
+      adminUser.id,
+      UserRole.ADMIN,
+      adminUser.email,
+      adminUser.name
+    );
     if (originalExpiresIn) {
       process.env['JWT_EXPIRES_IN'] = originalExpiresIn;
     }
