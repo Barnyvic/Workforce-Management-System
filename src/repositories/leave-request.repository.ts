@@ -12,7 +12,10 @@ export class LeaveRequestRepositoryImpl implements LeaveRequestRepository {
   }
 
   async findById(id: number): Promise<LeaveRequest | null> {
-    return this.repository.findOne({ where: { id } });
+    return this.repository.findOne({
+      where: { id },
+      relations: ['user'],
+    });
   }
 
   async findByUserId(

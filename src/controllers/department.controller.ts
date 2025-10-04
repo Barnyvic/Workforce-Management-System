@@ -68,8 +68,25 @@ export class DepartmentController {
     res.status(statusCode).json(result);
   };
 
-  getAllDepartments = async (_req: Request, res: Response): Promise<void> => {
-    const result = await this.departmentService.getAllDepartments();
+  getAllDepartments = async (req: Request, res: Response): Promise<void> => {
+    const page = parseInt(req.query['page'] as string) || undefined;
+    const limit = parseInt(req.query['limit'] as string) || undefined;
+
+    let pagination;
+    if (page && limit) {
+      if (page < 1 || limit < 1 || limit > 100) {
+        res.status(400).json({
+          success: false,
+          error:
+            'Invalid pagination parameters. Page must be >= 1, limit must be 1-100',
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+      pagination = { page, limit };
+    }
+
+    const result = await this.departmentService.getAllDepartments(pagination);
     res.status(200).json(result);
   };
 

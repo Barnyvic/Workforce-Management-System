@@ -4,6 +4,7 @@ import {
   ApiResponse,
   QueueMessage,
   LeaveRequestStatus,
+  PaginatedResponse,
 } from '@/types';
 
 export interface CreateLeaveRequestDto {
@@ -30,6 +31,12 @@ export interface LeaveRequestService {
     status: LeaveRequestStatus
   ): Promise<ApiResponse<LeaveRequest>>;
   processLeaveRequest(message: QueueMessage): Promise<void>;
-  getAllLeaveRequests(): Promise<ApiResponse<LeaveRequest[]>>;
+  getAllLeaveRequests(
+    pagination?: PaginationParams
+  ): Promise<ApiResponse<LeaveRequest[]> | PaginatedResponse<LeaveRequest>>;
+  getAllLeaveRequestsWithAuth(
+    userInfo: { userId: number; role: string; departmentId?: number },
+    pagination?: PaginationParams
+  ): Promise<ApiResponse<LeaveRequest[]>>;
   deleteLeaveRequest(id: number): Promise<ApiResponse<void>>;
 }

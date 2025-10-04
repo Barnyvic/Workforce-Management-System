@@ -25,10 +25,9 @@ export class AuthServiceImpl implements AuthService {
   generateToken(userId: number, role: UserRole): string {
     const jwtConfig = this.config.getJwtConfig();
     const payload = { userId, role };
-    const options: jwt.SignOptions = {
-      expiresIn: parseInt(jwtConfig.expiresIn, 10),
-    };
-    return jwt.sign(payload, jwtConfig.secret, options);
+    return jwt.sign(payload, jwtConfig.secret, {
+      expiresIn: jwtConfig.expiresIn as any,
+    });
   }
 
   verifyToken(token: string): any {

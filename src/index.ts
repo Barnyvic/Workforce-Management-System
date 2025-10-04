@@ -30,7 +30,11 @@ class Application {
     this.app = express();
     this.cacheService = new CacheServiceImpl();
     this.queueService = new QueueServiceImpl();
-    this.leaveRequestService = new LeaveRequestServiceImpl();
+    this.leaveRequestService = new LeaveRequestServiceImpl(
+      undefined,
+      undefined,
+      this.queueService
+    );
     this.setupMiddleware();
     this.setupRoutes();
     this.setupErrorHandling();

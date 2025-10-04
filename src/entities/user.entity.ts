@@ -54,4 +54,10 @@ export class User {
 
   @OneToMany(() => LeaveRequest, (leaveRequest) => leaveRequest.user)
   leaveRequests!: LeaveRequest[];
+
+
+  toSafeObject() {
+    const { password, ...safeUser } = this;
+    return safeUser;
+  }
 }

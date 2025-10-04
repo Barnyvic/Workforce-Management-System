@@ -1,9 +1,8 @@
-import { User } from '@/entities/user.entity';
 import { UserRepository } from '@/interfaces/user-repository.interface';
 import { UserRepositoryImpl } from '@/repositories/user.repository';
 import { DepartmentRepository } from '@/interfaces/repository.interfaces';
 import { DepartmentRepositoryImpl } from '@/repositories/department.repository';
-import { PaginationParams, ApiResponse, UserRole } from '@/types';
+import { PaginationParams, ApiResponse, UserRole, SafeUser } from '@/types';
 import {
   CreateUserDto,
   LoginDto,
@@ -29,7 +28,7 @@ export class UserServiceImpl implements UserService {
     this.authService = authService || new AuthServiceImpl();
   }
 
-  async createUser(data: CreateUserDto): Promise<ApiResponse<User>> {
+  async createUser(data: CreateUserDto): Promise<ApiResponse<SafeUser>> {
     logger.info('Creating user', {
       name: data.name,
       email: data.email,
@@ -82,7 +81,7 @@ export class UserServiceImpl implements UserService {
       });
       return {
         success: true,
-        data: user,
+        data: user.toSafeObject(),
         message: 'User created successfully',
         timestamp: new Date().toISOString(),
       };
@@ -100,7 +99,7 @@ export class UserServiceImpl implements UserService {
     }
   }
 
-  async getUserById(id: number): Promise<ApiResponse<User>> {
+  async getUserById(id: number): Promise<ApiResponse<SafeUser>> {
     logger.info('Getting user by ID', { userId: id });
     try {
       const user = await this.userRepository.findById(id);
@@ -121,7 +120,7 @@ export class UserServiceImpl implements UserService {
       });
       return {
         success: true,
-        data: user,
+        data: user.toSafeObject(),
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -137,7 +136,7 @@ export class UserServiceImpl implements UserService {
     }
   }
 
-  async getUserWithLeaveHistory(id: number): Promise<ApiResponse<User>> {
+  async getUserWithLeaveHistory(id: number): Promise<ApiResponse<SafeUser>> {
     logger.info('Getting user with leave history', { userId: id });
     try {
       const user = await this.userRepository.findWithLeaveHistory(id);
@@ -157,7 +156,7 @@ export class UserServiceImpl implements UserService {
       });
       return {
         success: true,
-        data: user,
+        data: user.toSafeObject(),
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -179,7 +178,7 @@ export class UserServiceImpl implements UserService {
   async getUsersByDepartment(
     departmentId: number,
     pagination: PaginationParams
-  ): Promise<ApiResponse<User[]>> {
+  ): Promise<ApiResponse<SafeUser[]>> {
     logger.info('Getting users by department', {
       departmentId,
       pagination,
@@ -206,7 +205,7 @@ export class UserServiceImpl implements UserService {
       });
       return {
         success: true,
-        data: result.users,
+        data: result.users.map((user) => user.toSafeObject()),
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -225,7 +224,7 @@ export class UserServiceImpl implements UserService {
     }
   }
 
-  async getAllUsers(): Promise<ApiResponse<User[]>> {
+  async getAllUsers(): Promise<ApiResponse<SafeUser[]>> {
     logger.info('Getting all users');
     try {
       const users = await this.userRepository.findAll();
@@ -234,7 +233,7 @@ export class UserServiceImpl implements UserService {
       });
       return {
         success: true,
-        data: users,
+        data: users.map((user) => user.toSafeObject()),
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -252,7 +251,7 @@ export class UserServiceImpl implements UserService {
   async updateUser(
     id: number,
     data: Partial<CreateUserDto>
-  ): Promise<ApiResponse<User>> {
+  ): Promise<ApiResponse<SafeUser>> {
     logger.info('Updating user', { userId: id, updateData: data });
     try {
       const user = await this.userRepository.findById(id);
@@ -313,7 +312,7 @@ export class UserServiceImpl implements UserService {
       });
       return {
         success: true,
-        data: updatedUser,
+        data: updatedUser.toSafeObject(),
         message: 'User updated successfully',
         timestamp: new Date().toISOString(),
       };

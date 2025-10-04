@@ -1,7 +1,12 @@
 import { Department } from '@/entities/department.entity';
 import { DepartmentRepository } from '@/interfaces/repository.interfaces';
 import { DepartmentRepositoryImpl } from '@/repositories/department.repository';
-import { PaginationParams, ApiResponse } from '@/types';
+import {
+  PaginationParams,
+  ApiResponse,
+  PaginatedResponse,
+  PaginationMetadata,
+} from '@/types';
 import {
   CreateDepartmentDto,
   DepartmentService,
@@ -114,6 +119,12 @@ export class DepartmentServiceImpl implements DepartmentService {
         };
       }
 
+      // Create safe department object without user passwords
+      const safeDepartment = {
+        ...department,
+        users: department.users?.map((user) => user.toSafeObject()) || [],
+      };
+
       logger.info('Department with users retrieved successfully', {
         departmentId: id,
         name: department.name,
@@ -121,7 +132,7 @@ export class DepartmentServiceImpl implements DepartmentService {
       });
       return {
         success: true,
-        data: department,
+        data: safeDepartment as Department,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -163,6 +174,13 @@ export class DepartmentServiceImpl implements DepartmentService {
         departmentId,
         pagination
       );
+
+      // Create safe departments with sanitized user data
+      const safeDepartments = result.departments.map((dept) => ({
+        ...dept,
+        users: dept.users?.map((user) => user.toSafeObject()) || [],
+      }));
+
       logger.info('Users by department retrieved successfully', {
         departmentId,
         total: result.total,
@@ -170,7 +188,7 @@ export class DepartmentServiceImpl implements DepartmentService {
       });
       return {
         success: true,
-        data: result.departments,
+        data: safeDepartments as Department[],
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -189,18 +207,62 @@ export class DepartmentServiceImpl implements DepartmentService {
     }
   }
 
-  async getAllDepartments(): Promise<ApiResponse<Department[]>> {
-    logger.info('Getting all departments');
+  async getAllDepartments(
+    pagination?: PaginationParams
+  ): Promise<ApiResponse<Department[]> | PaginatedResponse<Department>> {
+    logger.info('Getting all departments', { pagination });
     try {
-      const departments = await this.departmentRepository.findAll();
-      logger.info('All departments retrieved successfully', {
-        count: departments.length,
-      });
-      return {
-        success: true,
-        data: departments,
-        timestamp: new Date().toISOString(),
-      };
+      if (pagination) {
+        const { page, limit } = pagination;
+        const skip = (page - 1) * limit;
+
+        // Use findAndCount for pagination
+        const [departments, total] = await Promise.all([
+          this.departmentRepository.findAll({
+            skip,
+            take: limit,
+            order: { createdAt: 'DESC' },
+          }),
+          this.departmentRepository.count(),
+        ]);
+
+        const totalPages = Math.ceil(total / limit);
+        const paginationMetadata: PaginationMetadata = {
+          total,
+          page,
+          limit,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        };
+
+        logger.info('All departments retrieved successfully with pagination', {
+          count: departments.length,
+          total,
+          pagination: paginationMetadata,
+        });
+
+        return {
+          success: true,
+          data: departments,
+          pagination: paginationMetadata,
+          timestamp: new Date().toISOString(),
+        };
+      } else {
+        const departments = await this.departmentRepository.findAll({
+          order: { createdAt: 'DESC' },
+        });
+
+        logger.info('All departments retrieved successfully', {
+          count: departments.length,
+        });
+
+        return {
+          success: true,
+          data: departments,
+          timestamp: new Date().toISOString(),
+        };
+      }
     } catch (error) {
       logger.error('Failed to get all departments', {
         error: error instanceof Error ? error.message : 'Unknown error',

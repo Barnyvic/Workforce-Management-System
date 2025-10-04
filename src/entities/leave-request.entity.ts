@@ -51,4 +51,14 @@ export class LeaveRequest {
     const timeDiff = this.endDate.getTime() - this.startDate.getTime();
     return Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
   }
+
+  /**
+   * Returns a safe version of the leave request object with safe user data
+   */
+  toSafeObject() {
+    return {
+      ...this,
+      user: this.user ? this.user.toSafeObject() : undefined,
+    };
+  }
 }

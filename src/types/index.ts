@@ -11,13 +11,17 @@ export interface PaginationParams {
   limit: number;
 }
 
+export interface PaginationMetadata {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
 export interface PaginatedResponse<T> extends ApiResponse<T[]> {
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
+  pagination: PaginationMetadata;
 }
 
 export interface DatabaseConfig {
@@ -64,6 +68,18 @@ export enum UserRole {
   ADMIN = 'ADMIN',
   MANAGER = 'MANAGER',
   EMPLOYEE = 'EMPLOYEE',
+}
+
+export interface SafeUser {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  departmentId: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+  leaveRequests?: any[]; 
+  department?: any;
 }
 
 export enum LeaveRequestStatus {

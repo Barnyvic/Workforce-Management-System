@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { LeaveRequestServiceImpl } from '@/services/leave-request.service';
 import { LeaveRequestStatus, PaginationParams } from '@/types';
+import { AuthenticatedRequest } from '@/middleware/auth.middleware';
 
 export class LeaveRequestController {
   private leaveRequestService: LeaveRequestServiceImpl;
@@ -109,8 +110,50 @@ export class LeaveRequestController {
     res.status(statusCode).json(result);
   };
 
-  getAllLeaveRequests = async (_req: Request, res: Response): Promise<void> => {
-    const result = await this.leaveRequestService.getAllLeaveRequests();
+  getAllLeaveRequests = async (
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> => {
+    const page = parseInt(req.query['page'] as string) || undefined;
+    const limit = parseInt(req.query['limit'] as string) || undefined;
+
+    let pagination;
+    if (page && limit) {
+      if (page < 1 || limit < 1 || limit > 100) {
+        res.status(400).json({
+          success: false,
+          error:
+            'Invalid pagination parameters. Page must be >= 1, limit must be 1-100',
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+      pagination = { page, limit };
+    }
+
+    // Get user info from authenticated request
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    // For now, we'll need to get the user's department ID from the database
+    // This is a temporary solution - ideally the JWT should include departmentId
+    const userInfo: { userId: number; role: string; departmentId?: number } = {
+      userId: req.user.userId,
+      role: req.user.role,
+    };
+
+    // TODO: Get departmentId from user service or include it in JWT
+    // For now, we'll use the authorization method without departmentId for managers
+    const result = await this.leaveRequestService.getAllLeaveRequestsWithAuth(
+      userInfo,
+      pagination
+    );
     res.status(200).json(result);
   };
 

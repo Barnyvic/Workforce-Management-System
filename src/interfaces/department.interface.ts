@@ -1,5 +1,5 @@
 import { Department } from '@/entities/department.entity';
-import { PaginationParams, ApiResponse } from '@/types';
+import { PaginationParams, ApiResponse, PaginatedResponse } from '@/types';
 
 export interface CreateDepartmentDto {
   name: string;
@@ -13,7 +13,9 @@ export interface DepartmentService {
     departmentId: number,
     pagination: PaginationParams
   ): Promise<ApiResponse<Department[]>>;
-  getAllDepartments(): Promise<ApiResponse<Department[]>>;
+  getAllDepartments(
+    pagination?: PaginationParams
+  ): Promise<ApiResponse<Department[]> | PaginatedResponse<Department>>;
   updateDepartment(
     id: number,
     data: Partial<CreateDepartmentDto>

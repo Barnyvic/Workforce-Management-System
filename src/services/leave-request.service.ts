@@ -8,6 +8,8 @@ import {
   ApiResponse,
   QueueMessage,
   LeaveRequestStatus,
+  PaginatedResponse,
+  PaginationMetadata,
 } from '@/types';
 import { QueueServiceImpl } from '@/services/queue.service';
 import {
@@ -167,7 +169,7 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
       });
       return {
         success: true,
-        data: leaveRequest,
+        data: leaveRequest.toSafeObject() as LeaveRequest,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -206,7 +208,9 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
       });
       return {
         success: true,
-        data: result.leaveRequests,
+        data: result.leaveRequests.map((lr) =>
+          lr.toSafeObject()
+        ) as LeaveRequest[],
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -242,7 +246,9 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
       });
       return {
         success: true,
-        data: result.leaveRequests,
+        data: result.leaveRequests.map((lr) =>
+          lr.toSafeObject()
+        ) as LeaveRequest[],
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -291,7 +297,7 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
       });
       return {
         success: true,
-        data: updatedLeaveRequest,
+        data: updatedLeaveRequest.toSafeObject() as LeaveRequest,
         message: 'Leave request status updated successfully',
         timestamp: new Date().toISOString(),
       };
@@ -353,21 +359,174 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
     }
   }
 
-  async getAllLeaveRequests(): Promise<ApiResponse<LeaveRequest[]>> {
-    logger.info('Getting all leave requests');
+  async getAllLeaveRequests(
+    pagination?: PaginationParams
+  ): Promise<ApiResponse<LeaveRequest[]> | PaginatedResponse<LeaveRequest>> {
+    logger.info('Getting all leave requests', { pagination });
     try {
-      const leaveRequests = await this.leaveRequestRepository.findAll();
-      logger.info('All leave requests retrieved successfully', {
-        count: leaveRequests.length,
-      });
-      return {
-        success: true,
-        data: leaveRequests,
-        timestamp: new Date().toISOString(),
-      };
+      if (pagination) {
+        const { page, limit } = pagination;
+        const skip = (page - 1) * limit;
+
+        // Use findAll and count for pagination
+        const [leaveRequests, total] = await Promise.all([
+          this.leaveRequestRepository.findAll({
+            skip,
+            take: limit,
+            order: { createdAt: 'DESC' },
+            relations: ['user'],
+          }),
+          this.leaveRequestRepository.count(),
+        ]);
+
+        // Create safe leave requests without user passwords
+        const safeLeaveRequests = leaveRequests.map((lr) => lr.toSafeObject());
+
+        const totalPages = Math.ceil(total / limit);
+        const paginationMetadata: PaginationMetadata = {
+          total,
+          page,
+          limit,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        };
+
+        logger.info(
+          'All leave requests retrieved successfully with pagination',
+          {
+            count: leaveRequests.length,
+            total,
+            pagination: paginationMetadata,
+          }
+        );
+
+        return {
+          success: true,
+          data: safeLeaveRequests as LeaveRequest[],
+          pagination: paginationMetadata,
+          timestamp: new Date().toISOString(),
+        };
+      } else {
+        const leaveRequests = await this.leaveRequestRepository.findAll({
+          order: { createdAt: 'DESC' },
+          relations: ['user'],
+        });
+
+        // Create safe leave requests without user passwords
+        const safeLeaveRequests = leaveRequests.map((lr) => lr.toSafeObject());
+
+        logger.info('All leave requests retrieved successfully', {
+          count: leaveRequests.length,
+        });
+
+        return {
+          success: true,
+          data: safeLeaveRequests as LeaveRequest[],
+          timestamp: new Date().toISOString(),
+        };
+      }
     } catch (error) {
       logger.error('Failed to get all leave requests', {
         error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to get leave requests',
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  async getAllLeaveRequestsWithAuth(
+    userInfo: { userId: number; role: string; departmentId?: number },
+    pagination?: PaginationParams
+  ): Promise<ApiResponse<LeaveRequest[]>> {
+    logger.info('Getting leave requests with authorization', {
+      userInfo,
+      pagination,
+    });
+    try {
+      let leaveRequests: LeaveRequest[];
+
+      if (userInfo.role === 'ADMIN') {
+        // Admin can see all leave requests
+        return this.getAllLeaveRequests(pagination);
+      } else if (userInfo.role === 'MANAGER') {
+        // Manager can see leave requests for employees in their department
+        if (!userInfo.departmentId) {
+          logger.warn('Manager user has no department assigned', {
+            userId: userInfo.userId,
+          });
+          return {
+            success: false,
+            error: 'Manager user has no department assigned',
+            timestamp: new Date().toISOString(),
+          };
+        }
+
+        if (pagination) {
+          const { page, limit } = pagination;
+          const skip = (page - 1) * limit;
+          leaveRequests = await this.leaveRequestRepository.findAll({
+            skip,
+            take: limit,
+            order: { createdAt: 'DESC' },
+            relations: ['user'],
+            where: {
+              user: { departmentId: userInfo.departmentId },
+            },
+          });
+        } else {
+          leaveRequests = await this.leaveRequestRepository.findAll({
+            order: { createdAt: 'DESC' },
+            relations: ['user'],
+            where: {
+              user: { departmentId: userInfo.departmentId },
+            },
+          });
+        }
+      } else {
+        // Employee can only see their own leave requests
+        if (pagination) {
+          const { page, limit } = pagination;
+          const skip = (page - 1) * limit;
+          leaveRequests = await this.leaveRequestRepository.findAll({
+            skip,
+            take: limit,
+            order: { createdAt: 'DESC' },
+            relations: ['user'],
+            where: { userId: userInfo.userId },
+          });
+        } else {
+          leaveRequests = await this.leaveRequestRepository.findAll({
+            order: { createdAt: 'DESC' },
+            relations: ['user'],
+            where: { userId: userInfo.userId },
+          });
+        }
+      }
+
+      // Create safe leave requests without user passwords
+      const safeLeaveRequests = leaveRequests.map((lr) => lr.toSafeObject());
+
+      logger.info('Leave requests with authorization retrieved successfully', {
+        count: leaveRequests.length,
+        userRole: userInfo.role,
+        pagination,
+      });
+      return {
+        success: true,
+        data: safeLeaveRequests as LeaveRequest[],
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      logger.error('Failed to get leave requests with authorization', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userInfo,
       });
       return {
         success: false,
