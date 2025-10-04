@@ -13,9 +13,9 @@ export const AppDataSource = new DataSource({
   database: config.database,
   synchronize: false,
   logging: false,
-  entities: ['src/entities/*.entity.ts'],
-  migrations: ['src/migrations/*.ts'],
-  subscribers: ['src/subscribers/*.ts'],
+  entities: ['dist/entities/*.entity.js'],
+  migrations: ['dist/migrations/*.js'],
+  subscribers: ['dist/subscribers/*.js'],
   cache: {
     type: 'redis',
     options: {
