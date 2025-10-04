@@ -80,9 +80,15 @@ class Application {
       await this.queueService.consumeLeaveRequests(
         this.leaveRequestService.processLeaveRequest.bind(
           this.leaveRequestService
-        )
+        ),
+        {
+          prefetchCount: 1,
+          consumerTag: `main-app-${process.pid}`,
+        }
       );
-      logger.info('Started consuming leave request messages');
+      logger.info(
+        'Started consuming leave request messages in main application'
+      );
 
       const port = this.config.getConfig().port;
       this.app.listen(port, () => {

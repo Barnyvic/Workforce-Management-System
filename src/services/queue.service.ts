@@ -110,64 +110,75 @@ export class QueueServiceImpl implements QueueService {
   }
 
   async consumeLeaveRequests(
-    callback: (message: QueueMessage) => Promise<void>
+    callback: (message: QueueMessage) => Promise<void>,
+    options: { prefetchCount?: number; consumerTag?: string } = {}
   ): Promise<void> {
     if (!this.channel) {
       throw new Error('Queue channel not initialized');
     }
 
     try {
-      await this.channel.prefetch(1);
+      const prefetchCount = options.prefetchCount || 1;
+      await this.channel.prefetch(prefetchCount);
 
-      await this.channel.consume(this.config.queueName, async (msg) => {
-        if (!msg) return;
+      const consumerTag =
+        options.consumerTag || `consumer-${process.pid}-${Date.now()}`;
 
-        try {
-          const message: QueueMessage = JSON.parse(msg.content.toString());
-          logger.info(`Processing leave request message: ${message.id}`);
+      await this.channel.consume(
+        this.config.queueName,
+        async (msg) => {
+          if (!msg) return;
 
-          const isProcessed = await this.isMessageProcessed(message);
-          if (isProcessed) {
-            logger.info(`Message already processed, skipping: ${message.id}`);
+          try {
+            const message: QueueMessage = JSON.parse(msg.content.toString());
+            logger.info(`Processing leave request message: ${message.id}`);
+
+            const isProcessed = await this.isMessageProcessed(message);
+            if (isProcessed) {
+              logger.info(`Message already processed, skipping: ${message.id}`);
+              this.channel!.ack(msg);
+              return;
+            }
+
+            await callback(message);
+            await this.markMessageAsProcessed(message);
             this.channel!.ack(msg);
-            return;
+            logger.info(`Successfully processed message: ${message.id}`);
+          } catch (error) {
+            const message: QueueMessage = JSON.parse(msg.content.toString());
+            logger.error(`Error processing message ${message.id}:`, error);
+
+            const retryCount = (message.retryCount || 0) + 1;
+
+            if (retryCount <= this.retryPolicy.maxRetries) {
+              const delay = Math.min(
+                this.retryPolicy.backoffMs * Math.pow(2, retryCount - 1),
+                this.retryPolicy.maxBackoffMs
+              );
+
+              setTimeout(() => {
+                const retryMessage = { ...message, retryCount };
+                this.publishLeaveRequest(retryMessage).catch(logger.error);
+              }, delay);
+
+              this.channel!.ack(msg);
+              logger.info(
+                `Scheduled retry ${retryCount}/${this.retryPolicy.maxRetries} for message: ${message.id}`
+              );
+            } else {
+              this.channel!.nack(msg, false, false);
+              logger.info(
+                `Message ${message.id} sent to dead letter queue after ${this.retryPolicy.maxRetries} retries`
+              );
+            }
           }
+        },
+        { consumerTag }
+      );
 
-          await callback(message);
-          await this.markMessageAsProcessed(message);
-          this.channel!.ack(msg);
-          logger.info(`Successfully processed message: ${message.id}`);
-        } catch (error) {
-          const message: QueueMessage = JSON.parse(msg.content.toString());
-          logger.error(`Error processing message ${message.id}:`, error);
-
-          const retryCount = (message.retryCount || 0) + 1;
-
-          if (retryCount <= this.retryPolicy.maxRetries) {
-            const delay = Math.min(
-              this.retryPolicy.backoffMs * Math.pow(2, retryCount - 1),
-              this.retryPolicy.maxBackoffMs
-            );
-
-            setTimeout(() => {
-              const retryMessage = { ...message, retryCount };
-              this.publishLeaveRequest(retryMessage).catch(logger.error);
-            }, delay);
-
-            this.channel!.ack(msg);
-            logger.info(
-              `Scheduled retry ${retryCount}/${this.retryPolicy.maxRetries} for message: ${message.id}`
-            );
-          } else {
-            this.channel!.nack(msg, false, false);
-            logger.info(
-              `Message ${message.id} sent to dead letter queue after ${this.retryPolicy.maxRetries} retries`
-            );
-          }
-        }
-      });
-
-      logger.info('Started consuming leave request messages');
+      logger.info(
+        `Started consuming leave request messages with tag: ${consumerTag}`
+      );
     } catch (error) {
       logger.error('Error setting up consumer:', error);
       throw error;

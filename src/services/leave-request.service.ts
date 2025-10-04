@@ -128,51 +128,33 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
         };
       }
 
-      let initialStatus: LeaveRequestStatus;
-      if (durationInDays <= 2) {
-        initialStatus = LeaveRequestStatus.APPROVED;
-        logger.info('Auto-approving short leave request', {
-          userId: data.userId,
-          durationInDays,
-        });
-      } else {
-        initialStatus = LeaveRequestStatus.PENDING_APPROVAL;
-        logger.info(
-          'Leave request requires manual approval (duration > 2 days)',
-          {
-            userId: data.userId,
-            durationInDays,
-          }
-        );
-      }
-
       const leaveRequest = await this.leaveRequestRepository.create({
         userId: data.userId,
         startDate,
         endDate,
-        status: initialStatus,
+        status: LeaveRequestStatus.PENDING,
       });
 
-      if (initialStatus === LeaveRequestStatus.PENDING_APPROVAL) {
-        await this.queueService.publishLeaveRequest({
-          id: leaveRequest.id.toString(),
-          type: 'leave.requested',
-          data: {
-            leaveRequestId: leaveRequest.id,
-            userId: data.userId,
-            startDate: data.startDate,
-            endDate: data.endDate,
-          },
-          timestamp: new Date().toISOString(),
-        });
-      }
+      await this.queueService.publishLeaveRequest({
+        id: leaveRequest.id.toString(),
+        type: 'leave.requested',
+        data: {
+          leaveRequestId: leaveRequest.id,
+          userId: data.userId,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          durationInDays,
+        },
+        timestamp: new Date().toISOString(),
+      });
 
-      logger.info('Leave request created successfully', {
+      logger.info('Leave request created and queued for processing', {
         leaveRequestId: leaveRequest.id,
         userId: data.userId,
         duration: durationInDays,
-        status: initialStatus,
+        status: LeaveRequestStatus.PENDING,
       });
+
       return {
         success: true,
         data: leaveRequest,
@@ -197,7 +179,18 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
 
   async getLeaveRequestById(id: number): Promise<ApiResponse<LeaveRequest>> {
     logger.info('Getting leave request by ID', { leaveRequestId: id });
+
+    const cacheKey = `leave-request:${id}`;
+
     try {
+      const cached = await this.cacheService.get<string>(cacheKey);
+      if (cached) {
+        logger.info('Leave request retrieved from cache', {
+          leaveRequestId: id,
+        });
+        return JSON.parse(cached);
+      }
+
       const leaveRequest = await this.leaveRequestRepository.findById(id);
       if (!leaveRequest) {
         logger.warn('Leave request not found', { leaveRequestId: id });
@@ -208,16 +201,21 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
         };
       }
 
+      const result = {
+        success: true,
+        data: leaveRequest.toSafeObject() as LeaveRequest,
+        timestamp: new Date().toISOString(),
+      };
+
+      await this.cacheService.set(cacheKey, JSON.stringify(result), 120);
+
       logger.info('Leave request retrieved successfully', {
         leaveRequestId: id,
         userId: leaveRequest.userId,
         status: leaveRequest.status,
       });
-      return {
-        success: true,
-        data: leaveRequest.toSafeObject() as LeaveRequest,
-        timestamp: new Date().toISOString(),
-      };
+
+      return result;
     } catch (error) {
       logger.error('Failed to get leave request by ID', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -363,9 +361,10 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
     try {
       const { leaveRequestId } = message.data as {
         leaveRequestId: number;
-        employeeId: number;
+        userId: number;
         startDate: string;
         endDate: string;
+        durationInDays: number;
       };
 
       const leaveRequest =
@@ -375,16 +374,45 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
         return;
       }
 
-      if (leaveRequest.status !== LeaveRequestStatus.PENDING_APPROVAL) {
+      if (leaveRequest.status !== LeaveRequestStatus.PENDING) {
         logger.info(
           `Leave request ${leaveRequestId} already processed with status: ${leaveRequest.status}`
         );
         return;
       }
 
-      logger.info(
-        `Leave request ${leaveRequestId} queued for manual approval workflow (${leaveRequest.durationInDays} days)`
-      );
+      let newStatus: LeaveRequestStatus;
+      if (leaveRequest.durationInDays <= 2) {
+        newStatus = LeaveRequestStatus.APPROVED;
+        logger.info('Auto-approving short leave request', {
+          leaveRequestId,
+          durationInDays: leaveRequest.durationInDays,
+        });
+      } else {
+        newStatus = LeaveRequestStatus.PENDING_APPROVAL;
+        logger.info(
+          'Leave request requires manual approval (duration > 2 days)',
+          {
+            leaveRequestId,
+            durationInDays: leaveRequest.durationInDays,
+          }
+        );
+      }
+
+
+      await this.leaveRequestRepository.updateStatus(leaveRequestId, newStatus);
+
+      const cacheKey = `leave-request:${leaveRequestId}`;
+      await this.cacheService.del(cacheKey);
+
+      await this.invalidateUserLeaveRequestsCache(leaveRequest.userId);
+
+      logger.info('Leave request processed successfully', {
+        leaveRequestId,
+        oldStatus: LeaveRequestStatus.PENDING,
+        newStatus,
+        durationInDays: leaveRequest.durationInDays,
+      });
     } catch (error) {
       logger.error('Error processing leave request:', error);
       throw error;
@@ -396,13 +424,11 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
   ): Promise<ApiResponse<LeaveRequest[]> | PaginatedResponse<LeaveRequest>> {
     logger.info('Getting all leave requests', { pagination });
 
-    // Generate cache key
     const cacheKey = pagination
       ? `leave-requests:all:page:${pagination.page}:limit:${pagination.limit}`
       : 'leave-requests:all';
 
     try {
-      // Check cache first
       const cached = await this.cacheService.get<string>(cacheKey);
       if (cached) {
         logger.info('Leave requests retrieved from cache', { cacheKey });
@@ -440,7 +466,6 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
           timestamp: new Date().toISOString(),
         };
 
-        // Cache the result for 2 minutes (shorter cache for dynamic data)
         await this.cacheService.set(cacheKey, JSON.stringify(result), 120);
 
         logger.info(
@@ -465,7 +490,6 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
           timestamp: new Date().toISOString(),
         };
 
-        // Cache the result for 2 minutes (shorter cache for dynamic data)
         await this.cacheService.set(cacheKey, JSON.stringify(result), 120);
 
         logger.info('All leave requests retrieved successfully', {
@@ -622,6 +646,31 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
             : 'Failed to delete leave request',
         timestamp: new Date().toISOString(),
       };
+    }
+  }
+
+
+  private async invalidateUserLeaveRequestsCache(
+    userId: number
+  ): Promise<void> {
+    try {
+      const commonPaginationKeys = [
+        `leave-requests:user:${userId}:page:1:limit:10`,
+        `leave-requests:user:${userId}:page:1:limit:20`,
+        `leave-requests:user:${userId}:page:1:limit:50`,
+        `leave-requests:all:page:1:limit:10`,
+        `leave-requests:all:page:1:limit:20`,
+        `leave-requests:all:page:1:limit:50`,
+        `leave-requests:all`,
+      ];
+
+      await Promise.all(
+        commonPaginationKeys.map((key) => this.cacheService.del(key))
+      );
+
+      logger.debug('Cache invalidated for user leave requests', { userId });
+    } catch (error) {
+      logger.warn('Failed to invalidate cache:', error);
     }
   }
 }

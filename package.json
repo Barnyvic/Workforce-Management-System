@@ -16,7 +16,10 @@
     "migrate": "typeorm migration:run -d ormconfig.ts",
     "migrate:generate": "typeorm migration:generate -d ormconfig.ts",
     "migrate:revert": "typeorm migration:revert -d ormconfig.ts",
-    "seed": "ts-node scripts/seed.ts"
+    "seed": "ts-node scripts/seed.ts",
+    "worker": "ts-node -r tsconfig-paths/register src/workers/queue-worker.ts",
+    "workers": "ts-node -r tsconfig-paths/register src/scripts/start-workers.ts",
+    "workers:scale": "ts-node -r tsconfig-paths/register src/scripts/start-workers.ts --count=4"
   },
   "keywords": [
     "workforce",

@@ -58,12 +58,14 @@ src/
 ### Using Docker Compose (Recommended)
 
 1. **Clone the repository**
+
    ```bash
    git clone <repository-url>
    cd workforce-management-system
    ```
 
 2. **Start all services**
+
    ```bash
    docker-compose up -d
    ```
@@ -76,37 +78,43 @@ src/
 ### Manual Setup
 
 1. **Install dependencies**
+
    ```bash
    npm install
    ```
 
 2. **Set up environment variables**
+
    ```bash
    cp env.example .env
    # Edit .env with your configuration
    ```
 
 3. **Start external services**
+
    ```bash
    # Start MySQL, Redis, and RabbitMQ
    # Update .env with correct connection details
    ```
 
 4. **Run database migrations**
+
    ```bash
    npm run migrate
    ```
 
 5. **Seed the database (optional)**
+
    ```bash
    npm run seed
    ```
 
 6. **Start the application**
+
    ```bash
    # Development
    npm run dev
-   
+
    # Production
    npm run build
    npm start
@@ -115,6 +123,7 @@ src/
 ## API Documentation
 
 ### Base URL
+
 ```
 http://localhost:3000/api/v1
 ```
@@ -122,6 +131,7 @@ http://localhost:3000/api/v1
 ### Endpoints
 
 #### Departments
+
 - `POST /departments` - Create a department
 - `GET /departments` - Get all departments
 - `GET /departments/:id` - Get department by ID
@@ -130,6 +140,7 @@ http://localhost:3000/api/v1
 - `DELETE /departments/:id` - Delete department
 
 #### Employees
+
 - `POST /employees` - Create an employee
 - `GET /employees` - Get all employees
 - `GET /employees/:id` - Get employee by ID
@@ -138,6 +149,7 @@ http://localhost:3000/api/v1
 - `DELETE /employees/:id` - Delete employee
 
 #### Leave Requests
+
 - `POST /leave-requests` - Create a leave request
 - `GET /leave-requests` - Get all leave requests
 - `GET /leave-requests/:id` - Get leave request by ID
@@ -146,6 +158,7 @@ http://localhost:3000/api/v1
 - `DELETE /leave-requests/:id` - Delete leave request
 
 #### Health Checks
+
 - `GET /health` - System health check
 - `GET /health/queue` - Queue health check
 - `GET /health/cache` - Cache health check
@@ -164,6 +177,7 @@ All API responses follow a consistent format:
 ```
 
 Error responses:
+
 ```json
 {
   "success": false,
@@ -175,6 +189,7 @@ Error responses:
 ### Pagination
 
 Paginated endpoints support query parameters:
+
 - `page` - Page number (default: 1)
 - `limit` - Items per page (default: 10, max: 100)
 
@@ -182,23 +197,24 @@ Paginated endpoints support query parameters:
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NODE_ENV` | Environment | `development` |
-| `PORT` | Server port | `3000` |
-| `DB_HOST` | Database host | `localhost` |
-| `DB_PORT` | Database port | `3306` |
-| `DB_NAME` | Database name | `workforce_management` |
-| `DB_USER` | Database user | `root` |
-| `DB_PASSWORD` | Database password | `password` |
-| `REDIS_HOST` | Redis host | `localhost` |
-| `REDIS_PORT` | Redis port | `6379` |
-| `RABBITMQ_URL` | RabbitMQ connection URL | `amqp://localhost:5672` |
-| `JWT_SECRET` | JWT secret key | `your-super-secret-jwt-key` |
+| Variable       | Description             | Default                     |
+| -------------- | ----------------------- | --------------------------- |
+| `NODE_ENV`     | Environment             | `development`               |
+| `PORT`         | Server port             | `3000`                      |
+| `DB_HOST`      | Database host           | `localhost`                 |
+| `DB_PORT`      | Database port           | `3306`                      |
+| `DB_NAME`      | Database name           | `workforce_management`      |
+| `DB_USER`      | Database user           | `root`                      |
+| `DB_PASSWORD`  | Database password       | `password`                  |
+| `REDIS_HOST`   | Redis host              | `localhost`                 |
+| `REDIS_PORT`   | Redis port              | `6379`                      |
+| `RABBITMQ_URL` | RabbitMQ connection URL | `amqp://localhost:5672`     |
+| `JWT_SECRET`   | JWT secret key          | `your-super-secret-jwt-key` |
 
 ## Testing
 
 ### Run Tests
+
 ```bash
 # Run all tests
 npm test
@@ -211,6 +227,7 @@ npm run test:coverage
 ```
 
 ### Test Structure
+
 - **Unit Tests**: Test individual services and repositories
 - **Integration Tests**: Test API endpoints with database
 - **Test Database**: Uses separate test database
@@ -220,6 +237,7 @@ npm run test:coverage
 ### Tables
 
 #### Departments
+
 ```sql
 CREATE TABLE departments (
   id INT PRIMARY KEY AUTO_INCREMENT,
@@ -234,6 +252,7 @@ CREATE TABLE departments (
 ### Tables
 
 #### Departments
+
 ```sql
 CREATE TABLE departments (
   id INT PRIMARY KEY AUTO_INCREMENT,
@@ -244,6 +263,7 @@ CREATE TABLE departments (
 ```
 
 #### Users
+
 ```sql
 CREATE TABLE users (
   id INT PRIMARY KEY AUTO_INCREMENT,
@@ -259,6 +279,7 @@ CREATE TABLE users (
 ```
 
 #### Leave Requests
+
 ```sql
 CREATE TABLE leave_requests (
   id INT PRIMARY KEY AUTO_INCREMENT,
@@ -273,11 +294,13 @@ CREATE TABLE leave_requests (
 ```
 
 ### User Roles
+
 - **ADMIN**: Full system access, can manage users and departments
-- **MANAGER**: Can approve/reject leave requests, manage team members  
+- **MANAGER**: Can approve/reject leave requests, manage team members
 - **EMPLOYEE**: Can create leave requests, view own data
 
 ### Indexes
+
 - `idx_users_email` - Unique index on user email
 - `idx_users_department_id` - Index on department foreign key
 - `idx_users_role` - Index on user role
@@ -297,22 +320,50 @@ CREATE TABLE leave_requests (
 4. **Dead Letter Queue**: Failed messages after max retries
 
 ### Queue Configuration
+
 - **Main Queue**: `leave_requests`
 - **Dead Letter Queue**: `leave_requests_dlq`
 - **Retry Policy**: 3 retries with exponential backoff
+- **Multiple Consumers**: Support for horizontal scaling
+- **Prefetch Settings**: Optimized for different consumer types
+
+### Queue Scaling
+
+```bash
+# Start single worker
+npm run worker
+
+# Start multiple workers (default: 2)
+npm run workers
+
+# Start custom number of workers
+npm run workers -- --count=4
+
+# Scale for high load
+npm run workers:scale  # Starts 4 workers
+```
+
+### Queue Consumer Types
+
+1. **Main Application Consumer**: Handles basic processing (prefetch: 1)
+2. **Dedicated Workers**: Optimized for high throughput (prefetch: 5)
+3. **Auto-restart**: Workers automatically restart on failure
 
 ## Scalability Features
 
 ### Database Scaling
+
 - **Pagination**: All list endpoints support pagination
 - **Indexing**: Optimized indexes for common queries
 - **Connection Pooling**: Sequelize connection pool configuration
 
 ### Caching
+
 - **Redis Integration**: Caching layer for frequently accessed data
 - **Cache Health Monitoring**: Health check endpoint for cache status
 
 ### API Scaling
+
 - **Rate Limiting**: Configurable rate limiting middleware
 - **Request Validation**: Joi validation for all inputs
 - **Error Handling**: Structured error responses
@@ -328,11 +379,13 @@ CREATE TABLE leave_requests (
 ## Monitoring & Health Checks
 
 ### Health Endpoints
+
 - `/health` - Overall system health
 - `/health/queue` - RabbitMQ connection status
 - `/health/cache` - Redis connection status
 
 ### Logging
+
 - **Winston**: Structured logging
 - **Request Logging**: HTTP request/response logging
 - **Error Logging**: Comprehensive error tracking
@@ -340,12 +393,14 @@ CREATE TABLE leave_requests (
 ## Docker Support
 
 ### Services
+
 - **App**: Node.js application
 - **MySQL**: Database server
 - **Redis**: Cache server
 - **RabbitMQ**: Message queue server
 
 ### Docker Commands
+
 ```bash
 # Start all services
 docker-compose up -d
@@ -363,11 +418,13 @@ docker-compose up --build -d
 ## Development
 
 ### Code Quality
+
 - **ESLint**: Code linting with TypeScript rules
 - **Prettier**: Code formatting
 - **TypeScript**: Strict type checking
 
 ### Scripts
+
 ```bash
 npm run build      # Build TypeScript
 npm run dev        # Development server
@@ -394,6 +451,7 @@ This project is licensed under the MIT License.
 ## Support
 
 For support and questions:
+
 - Create an issue in the repository
 - Check the API documentation
 - Review the test cases for usage examples
