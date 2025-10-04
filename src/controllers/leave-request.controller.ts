@@ -53,7 +53,8 @@ export class LeaveRequestController {
       userId,
       pagination
     );
-    res.status(200).json(result);
+    const statusCode = result.success ? 200 : 404;
+    res.status(statusCode).json(result);
   };
 
   getLeaveRequestsByStatus = async (

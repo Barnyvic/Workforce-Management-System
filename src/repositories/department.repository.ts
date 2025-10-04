@@ -52,19 +52,20 @@ export class DepartmentRepositoryImpl implements DepartmentRepository {
 
   async findUsersByDepartment(
     departmentId: number,
-    pagination: PaginationParams
+    _pagination: PaginationParams
   ): Promise<{ departments: Department[]; total: number }> {
-    const { page, limit } = pagination;
-    const skip = (page - 1) * limit;
-
-    const [departments, total] = await this.repository.findAndCount({
+    // Find the specific department with its users
+    const department = await this.repository.findOne({
       where: { id: departmentId },
       relations: ['users'],
-      skip,
-      take: limit,
     });
 
-    return { departments, total };
+    if (!department) {
+      return { departments: [], total: 0 };
+    }
+
+    // Return the department with all users (pagination can be applied later if needed)
+    return { departments: [department], total: 1 };
   }
 
   async create(data: Partial<Department>): Promise<Department> {

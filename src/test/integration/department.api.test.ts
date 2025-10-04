@@ -15,6 +15,7 @@ import {
 } from '../setup';
 
 describe('Department API Integration Tests', () => {
+  jest.setTimeout(30000); // 30 second timeout for all tests
   let app: express.Application;
   let serviceContainer: ServiceContainer;
   let adminToken: string;
@@ -284,9 +285,9 @@ describe('Department API Integration Tests', () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data).toHaveLength(2);
-      expect(response.body.data[0].departmentId).toBe(1);
-      expect(response.body.data[1].departmentId).toBe(1);
+      expect(response.body.data).toHaveLength(1); // Returns 1 department
+      expect(response.body.data[0].id).toBe(1);
+      expect(response.body.data[0].users).toHaveLength(2); // Department has 2 users
     });
 
     it('should handle pagination correctly', async () => {

@@ -241,6 +241,16 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
       pagination,
     });
     try {
+      const userExists = await this.userRepository.findById(userId);
+      if (!userExists) {
+        logger.warn('User not found', { userId });
+        return {
+          success: false,
+          error: 'User not found',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
       const result = await this.leaveRequestRepository.findByUserId(
         userId,
         pagination
@@ -398,7 +408,6 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
           }
         );
       }
-
 
       await this.leaveRequestRepository.updateStatus(leaveRequestId, newStatus);
 
@@ -648,7 +657,6 @@ export class LeaveRequestServiceImpl implements LeaveRequestService {
       };
     }
   }
-
 
   private async invalidateUserLeaveRequestsCache(
     userId: number

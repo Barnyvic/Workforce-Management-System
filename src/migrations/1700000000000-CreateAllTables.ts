@@ -4,7 +4,6 @@ export class CreateAllTables1700000000000 implements MigrationInterface {
   name = 'CreateAllTables1700000000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Create departments table first (no dependencies)
     await queryRunner.query(`
       CREATE TABLE \`departments\` (
         \`id\` int NOT NULL AUTO_INCREMENT,
@@ -17,7 +16,6 @@ export class CreateAllTables1700000000000 implements MigrationInterface {
       ) ENGINE=InnoDB
     `);
 
-    // Create users table (depends on departments)
     await queryRunner.query(`
       CREATE TABLE \`users\` (
         \`id\` int NOT NULL AUTO_INCREMENT,
@@ -37,7 +35,6 @@ export class CreateAllTables1700000000000 implements MigrationInterface {
       ) ENGINE=InnoDB
     `);
 
-    // Create leave_requests table (depends on users)
     await queryRunner.query(`
       CREATE TABLE \`leave_requests\` (
         \`id\` int NOT NULL AUTO_INCREMENT,
@@ -56,7 +53,6 @@ export class CreateAllTables1700000000000 implements MigrationInterface {
       ) ENGINE=InnoDB
     `);
 
-    // Add foreign key constraints
     await queryRunner.query(`
       ALTER TABLE \`users\` 
       ADD CONSTRAINT \`FK_users_department\` 
@@ -71,11 +67,9 @@ export class CreateAllTables1700000000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    // Drop foreign key constraints first
     await queryRunner.query(`ALTER TABLE \`leave_requests\` DROP FOREIGN KEY \`FK_leave_requests_user\``);
     await queryRunner.query(`ALTER TABLE \`users\` DROP FOREIGN KEY \`FK_users_department\``);
 
-    // Drop tables in reverse order
     await queryRunner.query(`DROP TABLE \`leave_requests\``);
     await queryRunner.query(`DROP TABLE \`users\``);
     await queryRunner.query(`DROP TABLE \`departments\``);
