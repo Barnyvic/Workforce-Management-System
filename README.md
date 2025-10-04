@@ -21,17 +21,17 @@ The system follows a clean, layered architecture:
 
 ```
 src/
-├── config/          # Configuration services
-├── controllers/     # HTTP request handlers
-├── services/        # Business logic layer
-├── repositories/    # Data access layer
-├── entities/        # TypeORM entities
-├── migrations/      # Database migrations
-├── middleware/      # Express middleware
-├── routes/          # API route definitions
-├── types/           # TypeScript type definitions
-├── utils/           # Utility functions
-└── test/            # Test suites
+├── config/          Configuration services
+├── controllers/     HTTP request handlers
+├── services/        Business logic layer
+├── repositories/    Data access layer
+├── entities/        TypeORM entities
+├── migrations/      Database migrations
+├── middleware/      Express middleware
+├── routes/          API route definitions
+├── types/           TypeScript type definitions
+├── utils/           Utility functions
+└── test/            Test suites
 ```
 
 ## Tech Stack
@@ -44,6 +44,7 @@ src/
 - **Message Queue**: RabbitMQ
 - **Testing**: Jest with Supertest
 - **Containerization**: Docker & Docker Compose
+- **Package Manager**: Yarn
 
 ## Prerequisites
 
@@ -80,44 +81,40 @@ src/
 1. **Install dependencies**
 
    ```bash
-   npm install
+   yarn install
    ```
 
 2. **Set up environment variables**
 
    ```bash
    cp env.example .env
-   # Edit .env with your configuration
    ```
 
 3. **Start external services**
 
-   ```bash
-   # Start MySQL, Redis, and RabbitMQ
-   # Update .env with correct connection details
-   ```
+   Start MySQL, Redis, and RabbitMQ services and update .env with correct connection details
 
 4. **Run database migrations**
 
    ```bash
-   npm run migrate
+   yarn run migrate
    ```
 
-5. **Seed the database (optional)**
+5. **\*Seed the database (optional)**
 
    ```bash
-   npm run seed
+   yarn run seed
    ```
 
 6. **Start the application**
 
    ```bash
-   # Development
-   npm run dev
+   yarn run dev
+   ```
 
-   # Production
-   npm run build
-   npm start
+   ```bash
+   yarn run build
+   yarn start
    ```
 
 ## API Documentation
@@ -216,14 +213,11 @@ Paginated endpoints support query parameters:
 ### Run Tests
 
 ```bash
-# Run all tests
-npm test
+yarn test
 
-# Run tests in watch mode
-npm run test:watch
+yarn run test:watch
 
-# Run tests with coverage
-npm run test:coverage
+yarn run test:coverage
 ```
 
 ### Test Structure
@@ -231,21 +225,6 @@ npm run test:coverage
 - **Unit Tests**: Test individual services and repositories
 - **Integration Tests**: Test API endpoints with database
 - **Test Database**: Uses separate test database
-
-## Database Schema
-
-### Tables
-
-#### Departments
-
-```sql
-CREATE TABLE departments (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  name VARCHAR(255) UNIQUE NOT NULL,
-  createdAt DATETIME NOT NULL,
-  updatedAt DATETIME NOT NULL
-);
-```
 
 ## Database Schema
 
@@ -301,19 +280,19 @@ CREATE TABLE leave_requests (
 
 ### Indexes
 
-- `idx_users_email` - Unique index on user email
-- `idx_users_department_id` - Index on department foreign key
-- `idx_users_role` - Index on user role
-- `idx_leave_requests_user_id` - Index on user foreign key
-- `idx_leave_requests_status` - Index on leave request status
-- `idx_leave_requests_dates` - Composite index on start and end dates
+- `idx_users_email` Unique index on user email
+- `idx_users_department_id` Index on department foreign key
+- `idx_users_role` Index on user role
+- `idx_leave_requests_user_id` Index on user foreign key
+- `idx_leave_requests_status` Index on leave request status
+- `idx_leave_requests_dates` Composite index on start and end dates
 
 ## Message Queue Processing
 
 ### Leave Request Processing
 
 1. **Producer**: Creates leave request and publishes message to RabbitMQ
-2. **Consumer**: Processes messages with business rules:
+2. **Consumer**: Processes messages with business rules
    - Auto-approve leaves ≤ 2 days
    - Mark longer leaves as PENDING_APPROVAL
 3. **Retry Mechanism**: Exponential backoff for failed messages
@@ -330,23 +309,19 @@ CREATE TABLE leave_requests (
 ### Queue Scaling
 
 ```bash
-# Start single worker
-npm run worker
+yarn run worker
 
-# Start multiple workers (default: 2)
-npm run workers
+yarn run workers
 
-# Start custom number of workers
-npm run workers -- --count=4
+yarn run workers -- --count=4
 
-# Scale for high load
-npm run workers:scale  # Starts 4 workers
+yarn run workers:scale
 ```
 
 ### Queue Consumer Types
 
-1. **Main Application Consumer**: Handles basic processing (prefetch: 1)
-2. **Dedicated Workers**: Optimized for high throughput (prefetch: 5)
+1. **Main Application Consumer**: Handles basic processing with prefetch of 1
+2. **Dedicated Workers**: Optimized for high throughput with prefetch of 5
 3. **Auto-restart**: Workers automatically restart on failure
 
 ## Scalability Features
@@ -402,16 +377,12 @@ npm run workers:scale  # Starts 4 workers
 ### Docker Commands
 
 ```bash
-# Start all services
 docker-compose up -d
 
-# View logs
 docker-compose logs -f
 
-# Stop services
 docker-compose down
 
-# Rebuild and restart
 docker-compose up --build -d
 ```
 
@@ -426,13 +397,13 @@ docker-compose up --build -d
 ### Scripts
 
 ```bash
-npm run build      # Build TypeScript
-npm run dev        # Development server
-npm run migrate    # Run database migrations
-npm run seed       # Seed database with sample data
-npm run lint       # Run ESLint
-npm run lint:fix   # Fix ESLint issues
-npm run format     # Format code with Prettier
+yarn run build
+yarn run dev
+yarn run migrate
+yarn run seed
+yarn run lint
+yarn run lint:fix
+yarn run format
 ```
 
 ## Contributing
@@ -448,6 +419,15 @@ npm run format     # Format code with Prettier
 
 This project is licensed under the MIT License.
 
+## Troubleshooting
+
+Common issues and solutions:
+
+- **Database Connection**: Ensure MySQL service is running and credentials in .env are correct
+- **Redis Issues**: Verify Redis service is accessible and properly configured
+- **RabbitMQ Problems**: Check if RabbitMQ service is running and connection URL is valid
+- **Port Conflicts**: Change PORT in .env if 3000 is already in use
+
 ## Support
 
 For support and questions:
@@ -455,7 +435,13 @@ For support and questions:
 - Create an issue in the repository
 - Check the API documentation
 - Review the test cases for usage examples
+- Check Docker logs for container-related issues
 
----
+## Performance Optimization
 
-**Built for scalable workforce management**
+- Use pagination for large datasets
+- Implement caching strategies for frequently accessed data
+- Monitor queue processing times
+- Scale workers based on application load
+
+**Built for scalable workforce management with production-ready architecture**
