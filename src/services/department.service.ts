@@ -243,13 +243,11 @@ export class DepartmentServiceImpl implements DepartmentService {
   ): Promise<ApiResponse<Department[]> | PaginatedResponse<Department>> {
     logger.info('Getting all departments', { pagination });
 
-    // Generate cache key
     const cacheKey = pagination
       ? `departments:all:page:${pagination.page}:limit:${pagination.limit}`
       : 'departments:all';
 
     try {
-      // Check cache first
       const cached = await this.cacheService.get<string>(cacheKey);
       if (cached) {
         logger.info('Departments retrieved from cache', { cacheKey });
@@ -271,7 +269,6 @@ export class DepartmentServiceImpl implements DepartmentService {
 
         const result = createPaginatedResponse(departments, pagination, total);
 
-        // Cache the result for 5 minutes
         await this.cacheService.set(cacheKey, JSON.stringify(result), 300);
 
         logger.info('All departments retrieved successfully with pagination', {
@@ -292,7 +289,6 @@ export class DepartmentServiceImpl implements DepartmentService {
           timestamp: new Date().toISOString(),
         };
 
-        // Cache the result for 5 minutes
         await this.cacheService.set(cacheKey, JSON.stringify(result), 300);
 
         logger.info('All departments retrieved successfully', {

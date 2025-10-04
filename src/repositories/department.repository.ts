@@ -54,7 +54,6 @@ export class DepartmentRepositoryImpl implements DepartmentRepository {
     departmentId: number,
     _pagination: PaginationParams
   ): Promise<{ departments: Department[]; total: number }> {
-    // Find the specific department with its users
     const department = await this.repository.findOne({
       where: { id: departmentId },
       relations: ['users'],
@@ -64,7 +63,6 @@ export class DepartmentRepositoryImpl implements DepartmentRepository {
       return { departments: [], total: 0 };
     }
 
-    // Return the department with all users (pagination can be applied later if needed)
     return { departments: [department], total: 1 };
   }
 

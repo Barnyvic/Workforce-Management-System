@@ -58,9 +58,6 @@ export class LeaveRequest {
     return Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
   }
 
-  /**
-   * Returns a safe version of the leave request object with safe user data
-   */
   toSafeObject() {
     return {
       ...this,

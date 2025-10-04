@@ -19,7 +19,6 @@ export function createRoutes(
   const departmentController = new DepartmentController(cacheService);
   const userController = new UserController(cacheService);
 
-  // Create leave request service with shared queue and cache services
   const leaveRequestService = queueService
     ? new LeaveRequestServiceImpl(
         undefined,

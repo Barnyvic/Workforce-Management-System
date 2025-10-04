@@ -2,18 +2,8 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { ConfigService } from '@/config/config.service';
 import { UserRole } from '@/types';
+import { AuthService } from '@/interfaces/auth.interface';
 
-export interface AuthService {
-  hashPassword(password: string): Promise<string>;
-  comparePassword(password: string, hash: string): Promise<boolean>;
-  generateToken(
-    userId: number,
-    role: UserRole,
-    email?: string,
-    name?: string
-  ): string;
-  verifyToken(token: string): any;
-}
 
 export class AuthServiceImpl implements AuthService {
   private config = ConfigService.getInstance();

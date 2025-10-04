@@ -132,7 +132,6 @@ export class LeaveRequestController {
       pagination = { page, limit };
     }
 
-    // Since this route now requires admin role, we can directly call getAllLeaveRequests
     const result =
       await this.leaveRequestService.getAllLeaveRequests(pagination);
     res.status(200).json(result);

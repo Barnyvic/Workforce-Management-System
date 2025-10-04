@@ -191,7 +191,7 @@ export class UserServiceImpl implements UserService {
   async getUsersByDepartment(
     departmentId: number,
     pagination: PaginationParams
-  ): Promise<import('@/types').PaginatedResponse<SafeUser>> {
+  ): Promise<PaginatedResponse<SafeUser>> {
     logger.info('Getting users by department', {
       departmentId,
       pagination,
@@ -260,13 +260,11 @@ export class UserServiceImpl implements UserService {
   ): Promise<ApiResponse<SafeUser[]> | PaginatedResponse<SafeUser>> {
     logger.info('Getting all users', { pagination });
 
-    // Generate cache key
     const cacheKey = pagination
       ? `users:all:page:${pagination.page}:limit:${pagination.limit}`
       : 'users:all';
 
     try {
-      // Check cache first
       const cached = await this.cacheService.get<string>(cacheKey);
       if (cached) {
         logger.info('Users retrieved from cache', { cacheKey });
@@ -277,7 +275,6 @@ export class UserServiceImpl implements UserService {
         const { page, limit } = pagination;
         const skip = (page - 1) * limit;
 
-        // Use findAll and count for pagination
         const [users, total] = await Promise.all([
           this.userRepository.findAll({
             skip,
@@ -306,7 +303,6 @@ export class UserServiceImpl implements UserService {
           timestamp: new Date().toISOString(),
         };
 
-        // Cache the result for 5 minutes
         await this.cacheService.set(cacheKey, JSON.stringify(result), 300);
 
         logger.info('All users retrieved successfully with pagination', {
@@ -327,7 +323,6 @@ export class UserServiceImpl implements UserService {
           timestamp: new Date().toISOString(),
         };
 
-        // Cache the result for 5 minutes
         await this.cacheService.set(cacheKey, JSON.stringify(result), 300);
 
         logger.info('All users retrieved successfully', {

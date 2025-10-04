@@ -30,11 +30,9 @@ export const authenticateToken = async (
       return;
     }
 
-    // Verify JWT token directly without database lookup
     const authService = new AuthServiceImpl();
     const decoded = authService.verifyToken(token);
 
-    // Extract user information from JWT payload
     req.user = {
       userId: decoded.userId,
       role: decoded.role as UserRole,

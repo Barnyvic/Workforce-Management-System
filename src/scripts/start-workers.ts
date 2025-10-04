@@ -27,7 +27,7 @@ class WorkerManager {
   private workerCount: number;
   private isShuttingDown = false;
   private maxRestarts = 5;
-  private restartDelay = 5000; // 5 seconds
+  private restartDelay = 5000;
 
   constructor(workerCount: number = 2) {
     this.workerCount = workerCount;
@@ -36,12 +36,10 @@ class WorkerManager {
   async start(): Promise<void> {
     logger.info(`Starting ${this.workerCount} queue workers...`);
 
-    // Start initial workers
     for (let i = 1; i <= this.workerCount; i++) {
       await this.startWorker(i);
     }
 
-    // Setup graceful shutdown
     process.on('SIGTERM', this.gracefulShutdown.bind(this));
     process.on('SIGINT', this.gracefulShutdown.bind(this));
 
@@ -99,7 +97,6 @@ class WorkerManager {
 
     logger.warn(`Worker ${worker.id} exited with code ${code}, signal ${signal}`);
 
-    // Restart worker if under restart limit
     if (worker.restartCount < this.maxRestarts) {
       worker.restartCount++;
       logger.info(`Restarting worker ${worker.id} (attempt ${worker.restartCount}/${this.maxRestarts})`);
@@ -132,7 +129,6 @@ class WorkerManager {
         worker.process.on('exit', () => resolve());
         worker.process.kill('SIGTERM');
         
-        // Force kill after 10 seconds
         setTimeout(() => {
           if (!worker.process.killed) {
             worker.process.kill('SIGKILL');
@@ -163,18 +159,15 @@ class WorkerManager {
   }
 }
 
-// Parse command line arguments
 const args = process.argv.slice(2);
 const countArg = args.find(arg => arg.startsWith('--count='));
 const workerCount = countArg ? parseInt(countArg.split('=')[1] || '2') : 2;
 
-// Validate worker count
 if (isNaN(workerCount) || workerCount < 1 || workerCount > 10) {
   logger.error('Invalid worker count. Must be between 1 and 10.');
   process.exit(1);
 }
 
-// Start the worker manager if this file is run directly
 if (require.main === module) {
   const manager = new WorkerManager(workerCount);
   manager.start().catch((error) => {
